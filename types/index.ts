@@ -1,0 +1,158 @@
+export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube';
+export type SubmissionStatus = 'pending' | 'approved' | 'needs_edits' | 'rejected';
+export type TaskStatus = 'active' | 'upcoming' | 'completed';
+export type EventType = 'irl' | 'online';
+export type AssetType = 'image' | 'video' | 'document' | 'template';
+export type UserRole = 'ambassador' | 'regional_lead' | 'admin';
+
+export type UserStatus = 'pending' | 'active' | 'suspended';
+
+export interface User {
+  id: string;
+  name: string;
+  avatar: string;
+  email: string;
+  password?: string;
+  role: UserRole;
+  region: string;
+  points: number;
+  rank: number;
+  status: UserStatus;
+  inviteCode?: string;
+  handles: {
+    twitter?: string;
+    instagram?: string;
+    tiktok?: string;
+    youtube?: string;
+    discord?: string;
+  };
+  fslEmail?: string;
+  stats: {
+    totalPosts: number;
+    totalImpressions: number;
+    totalLikes: number;
+    totalRetweets: number;
+    completedTasks: number;
+  };
+  joinedAt: string;
+  activatedAt?: string;
+  sessionVersion?: number;
+}
+
+export interface Campaign {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  startDate: string;
+  endDate: string;
+  status: TaskStatus;
+  platforms: Platform[];
+  totalTasks: number;
+  completedTasks: number;
+}
+
+export interface Task {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  title: string;
+  brief: string;
+  thumbnail?: string;
+  platforms: Platform[];
+  hashtags: string[];
+  mentions: string[];
+  dos: string[];
+  donts: string[];
+  deadline: string;
+  points: number;
+  status: TaskStatus;
+  submissions: number;
+  maxSubmissions?: number;
+  assetIds?: string[];
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  type: AssetType;
+  url: string;
+  thumbnail: string;
+  campaignId?: string;
+  campaignTitle?: string;
+  platforms: Platform[];
+  format: string;
+  size: string;
+  downloadCount: number;
+  createdAt: string;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  type: EventType;
+  thumbnail: string;
+  date: string;
+  time: string;
+  location: string;
+  timezone: string;
+  attendees: number;
+  maxAttendees?: number;
+  isRsvped: boolean;
+  link?: string;
+}
+
+export interface SubmissionRating {
+  relevanceToTask: number; // 0-25: Followed brief, correct hashtags/tags/platform/message
+  creativity: number; // 0-15: Angle, storytelling, originality of presentation
+  originality: number; // 0-15: Own content, not copy-paste/duplicate/lazy
+  effortFormat: number; // 0-15: Effort level (text < image < edited video/IRL/voice)
+  enthusiasmTone: number; // 0-10: Genuine support, positive energy, not forced
+  engagementScore: number; // 0-20 (MAX): Based on impressions/likes/replies/RTs relative to account size
+  totalScore: number; // Calculated total score (0-100)
+  notes?: string; // Admin notes on the rating
+}
+
+export interface Submission {
+  id: string;
+  userId: string; // Ties submission to the user who created it
+  taskId: string;
+  taskTitle: string;
+  campaignTitle: string;
+  platform: Platform;
+  postUrl: string;
+  screenshotUrl?: string;
+  notes?: string;
+  status: SubmissionStatus;
+  feedback?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+  rating?: SubmissionRating; // Admin rating
+  metrics?: {
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+  };
+}
+
+export interface AmbassadorPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  userRegion: string;
+  platform: Platform;
+  campaignTitle: string;
+  content: string;
+  postUrl: string;
+  thumbnail?: string;
+  metrics: {
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+  };
+  postedAt: string;
+}
