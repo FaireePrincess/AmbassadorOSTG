@@ -53,26 +53,80 @@ interface DbRecord {
   id: string;
 }
 
-// In-memory fallback storage when DB is not configured
+// In-memory fallback storage when DB is not configured.
+// Optionally persisted to disk when filesystem is available.
 const memoryStore: Record<string, Record<string, unknown>> = {};
+let fileStoreLoaded = false;
+let fsAvailable = true;
 
-function getMemoryCollection(collection: string): unknown[] {
+const DATA_DIR = getEnvVar('DATA_DIR') || './data';
+const DATA_FILE = `${DATA_DIR}/db.json`;
+
+async function getFs() {
+  if (!fsAvailable) return null;
+  try {
+    const fs = await import('fs/promises');
+    return fs;
+  } catch {
+    fsAvailable = false;
+    return null;
+  }
+}
+
+async function ensureFileStoreLoaded(): Promise<void> {
+  if (fileStoreLoaded) return;
+  fileStoreLoaded = true;
+
+  const fs = await getFs();
+  if (!fs) return;
+
+  try {
+    const raw = await fs.readFile(DATA_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      Object.assign(memoryStore, parsed);
+    }
+  } catch (error) {
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+    } catch {
+    }
+  }
+}
+
+async function persistFileStore(): Promise<void> {
+  const fs = await getFs();
+  if (!fs) return;
+
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(DATA_FILE, JSON.stringify(memoryStore, null, 2), 'utf8');
+  } catch {
+  }
+}
+
+async function getMemoryCollection(collection: string): Promise<unknown[]> {
+  await ensureFileStoreLoaded();
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
   }
   return Object.values(memoryStore[collection]);
 }
 
-function setMemoryItem(collection: string, id: string, data: unknown): void {
+async function setMemoryItem(collection: string, id: string, data: unknown): Promise<void> {
+  await ensureFileStoreLoaded();
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
   }
   memoryStore[collection][id] = data;
+  await persistFileStore();
 }
 
-function deleteMemoryItem(collection: string, id: string): void {
+async function deleteMemoryItem(collection: string, id: string): Promise<void> {
+  await ensureFileStoreLoaded();
   if (memoryStore[collection]) {
     delete memoryStore[collection][id];
+    await persistFileStore();
   }
 }
 
@@ -121,7 +175,7 @@ export async function getCollection<T extends DbRecord>(collection: string): Pro
     return result.data as T[];
   }
   // Fallback to memory
-  return getMemoryCollection(collection) as T[];
+  return (await getMemoryCollection(collection)) as T[];
 }
 
 export async function getById<T extends DbRecord>(collection: string, id: string): Promise<T | null> {
@@ -133,7 +187,7 @@ export async function getById<T extends DbRecord>(collection: string, id: string
     return result.data as T;
   }
   // Fallback to memory
-  const items = getMemoryCollection(collection) as T[];
+  const items = (await getMemoryCollection(collection)) as T[];
   return items.find(item => item.id === id) || null;
 }
 
@@ -141,7 +195,7 @@ export async function create<T extends DbRecord>(collection: string, data: T): P
   const result = await makeRequest(`/${collection}`, "POST", data);
   if (!result) {
     // Use memory fallback
-    setMemoryItem(collection, data.id, data);
+    await setMemoryItem(collection, data.id, data);
     console.log(`[DB] Created ${collection} (memory):`, data.id);
     return data;
   }
@@ -153,10 +207,10 @@ export async function update<T extends DbRecord>(collection: string, id: string,
   const result = await makeRequest(`/${collection}/${id}`, "PUT", data);
   if (!result) {
     // Use memory fallback
-    const existing = (getMemoryCollection(collection) as T[]).find(item => item.id === id);
+    const existing = (await getMemoryCollection(collection) as T[]).find(item => item.id === id);
     if (existing) {
       const updated = { ...existing, ...data } as T;
-      setMemoryItem(collection, id, updated);
+      await setMemoryItem(collection, id, updated);
       console.log(`[DB] Updated ${collection} (memory):`, id);
       return updated;
     }
@@ -170,7 +224,7 @@ export async function remove(collection: string, id: string): Promise<boolean> {
   const result = await makeRequest(`/${collection}/${id}`, "DELETE");
   if (!result) {
     // Use memory fallback
-    deleteMemoryItem(collection, id);
+    await deleteMemoryItem(collection, id);
     console.log(`[DB] Deleted ${collection} (memory):`, id);
   } else {
     console.log(`[DB] Deleted ${collection}:`, id);

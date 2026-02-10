@@ -6,7 +6,8 @@
     "start": "bunx rork start -p yezyrpa39yxzi0qztiww1 --tunnel",
     "start-web": "bunx rork start -p yezyrpa39yxzi0qztiww1 --web --tunnel",
     "start-web-dev": "DEBUG=expo* bunx rork start -p yezyrpa39yxzi0qztiww1 --web --tunnel",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "start-backend": "bun run backend/server.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
