@@ -2,9 +2,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
 import { allUsers as mockUsers } from '@/mocks/data';
+import { trpcClient } from '@/lib/trpc';
 
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
+const BACKEND_ENABLED = !!process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
 
 interface AuthContextType {
   currentUser: User | null;
@@ -32,19 +34,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUsers = useCallback(async () => {
     try {
+      if (BACKEND_ENABLED) {
+        const backendUsers = await trpcClient.users.list.query();
+        setUsers(backendUsers);
+        await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(backendUsers));
+        return backendUsers;
+      }
+
       const storedUsers = await AsyncStorage.getItem(USERS_STORAGE_KEY);
       if (storedUsers) {
         const parsed = JSON.parse(storedUsers);
         setUsers(parsed);
         return parsed;
-      } else {
-        // Initialize with mock users
-        await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockUsers));
-        setUsers(mockUsers);
-        return mockUsers;
       }
+      // Initialize with mock users
+      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockUsers));
+      setUsers(mockUsers);
+      return mockUsers;
     } catch (error) {
       console.log('[Auth] Error loading users:', error);
+      if (BACKEND_ENABLED) {
+        const storedUsers = await AsyncStorage.getItem(USERS_STORAGE_KEY);
+        if (storedUsers) {
+          const parsed = JSON.parse(storedUsers);
+          setUsers(parsed);
+          return parsed;
+        }
+      }
       setUsers(mockUsers);
       return mockUsers;
     }
@@ -97,7 +113,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     console.log('[Auth] Attempting login for:', email);
-    
+
+    if (BACKEND_ENABLED) {
+      try {
+        const user = await trpcClient.users.login.mutate({ email, password });
+        console.log('[Auth] Login successful (backend):', user.name);
+        setCurrentUser(user);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Login failed';
+        console.log('[Auth] Backend login failed:', message);
+        return { success: false, error: message };
+      }
+    }
+
     // Get latest users from storage
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
     const currentUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
@@ -129,6 +159,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const activateAccount = useCallback(async (email: string, inviteCode: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (BACKEND_ENABLED) {
+      try {
+        const activatedUser = await trpcClient.users.activate.mutate({ email, inviteCode, password });
+        setCurrentUser(activatedUser);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activatedUser));
+        await loadUsers();
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Activation failed';
+        return { success: false, error: message };
+      }
+    }
+
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
     const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
     
@@ -162,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activatedUser));
     
     return { success: true };
-  }, [saveUsers]);
+  }, [saveUsers, loadUsers]);
 
   const logout = useCallback(async () => {
     setCurrentUser(null);
@@ -181,6 +224,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createUser = useCallback(async (userData: Omit<User, 'id' | 'inviteCode' | 'status' | 'stats' | 'joinedAt'>): Promise<{ success: boolean; inviteCode?: string; error?: string }> => {
     if (currentUser?.role !== 'admin') {
       return { success: false, error: 'Only admins can create users' };
+    }
+
+    if (BACKEND_ENABLED) {
+      try {
+        const newUser = await trpcClient.users.create.mutate({
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          region: userData.region,
+          handles: userData.handles || {},
+        });
+        await loadUsers();
+        console.log('[Auth] User created (backend):', newUser.email, 'Invite code:', newUser.inviteCode);
+        return { success: true, inviteCode: newUser.inviteCode };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to create user';
+        return { success: false, error: message };
+      }
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
@@ -219,11 +280,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log('[Auth] User created:', newUser.email, 'Invite code:', inviteCode);
     return { success: true, inviteCode };
-  }, [currentUser, saveUsers, generateInviteCode]);
+  }, [currentUser, saveUsers, generateInviteCode, loadUsers]);
 
   const updateUserStatus = useCallback(async (userId: string, status: User['status']): Promise<{ success: boolean; error?: string }> => {
     if (currentUser?.role !== 'admin') {
       return { success: false, error: 'Only admins can update user status' };
+    }
+
+    if (BACKEND_ENABLED) {
+      try {
+        await trpcClient.users.update.mutate({ id: userId, status });
+        await loadUsers();
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to update status';
+        return { success: false, error: message };
+      }
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
@@ -238,11 +310,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveUsers(currentUsers);
     
     return { success: true };
-  }, [currentUser, saveUsers]);
+  }, [currentUser, saveUsers, loadUsers]);
 
   const deleteUser = useCallback(async (userId: string): Promise<{ success: boolean; error?: string }> => {
     if (currentUser?.role !== 'admin') {
       return { success: false, error: 'Only admins can delete users' };
+    }
+
+    if (BACKEND_ENABLED) {
+      try {
+        const user = users.find((u) => u.id === userId);
+        if (!user) return { success: false, error: 'User not found' };
+        if (user.status !== 'suspended') {
+          return { success: false, error: 'Only suspended users can be deleted' };
+        }
+        await trpcClient.users.delete.mutate({ id: userId });
+        await loadUsers();
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete user';
+        return { success: false, error: message };
+      }
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
@@ -261,11 +349,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveUsers(updatedUsers);
     
     return { success: true };
-  }, [currentUser, saveUsers]);
+  }, [currentUser, saveUsers, users, loadUsers]);
 
   const changePassword = useCallback(async (userId: string, newPassword: string, currentPassword?: string): Promise<{ success: boolean; error?: string }> => {
     if (currentUser?.id !== userId && currentUser?.role !== 'admin') {
       return { success: false, error: 'You can only change your own password' };
+    }
+
+    if (BACKEND_ENABLED) {
+      try {
+        await trpcClient.users.changePassword.mutate({
+          id: userId,
+          newPassword,
+          currentPassword,
+        });
+        await loadUsers();
+
+        if (currentUser?.id === userId) {
+          const updatedUser = { ...currentUser, password: newPassword };
+          setCurrentUser(updatedUser);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        }
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to change password';
+        return { success: false, error: message };
+      }
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
@@ -294,7 +403,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     return { success: true };
-  }, [currentUser, saveUsers]);
+  }, [currentUser, saveUsers, loadUsers]);
 
   const refreshUsers = useCallback(async () => {
     await loadUsers();
