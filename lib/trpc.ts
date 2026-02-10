@@ -6,11 +6,26 @@ import type { AppRouter } from "@/backend/trpc/app-router";
 
 export const trpc = createTRPCReact<AppRouter>();
 
+const DEFAULT_BACKEND_URL = "https://ambassadorostg.onrender.com";
+
+const normalizeBaseUrl = (value: string): string => {
+  try {
+    const url = new URL(value);
+    return url.origin;
+  } catch (error) {
+    console.log('[tRPC] Invalid API base URL:', value, error);
+    return '';
+  }
+};
+
 export const getApiBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   if (envUrl) {
-    console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', envUrl);
-    return envUrl;
+    const normalized = normalizeBaseUrl(envUrl);
+    if (normalized) {
+      console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', normalized);
+      return normalized;
+    }
   }
 
   if (typeof window !== 'undefined') {
@@ -18,18 +33,29 @@ export const getApiBaseUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const apiParam = params.get('api');
       if (apiParam) {
-        try {
-          localStorage.setItem('RORK_API_BASE_URL', apiParam);
-        } catch {
+        const normalized = normalizeBaseUrl(apiParam);
+        if (normalized) {
+          try {
+            localStorage.setItem('RORK_API_BASE_URL', normalized);
+          } catch {
+          }
+          console.log('[tRPC] API base URL from query param:', normalized);
+          return normalized;
         }
-        console.log('[tRPC] API base URL from query param:', apiParam);
-        return apiParam;
       }
 
       const stored = localStorage.getItem('RORK_API_BASE_URL');
       if (stored) {
-        console.log('[tRPC] API base URL from localStorage:', stored);
-        return stored;
+        const normalized = normalizeBaseUrl(stored);
+        if (normalized) {
+          console.log('[tRPC] API base URL from localStorage:', normalized);
+          return normalized;
+        }
+      }
+
+      if (window.location.hostname === 'ambassador-ostg.vercel.app') {
+        console.log('[tRPC] Using default backend for ambassador-ostg:', DEFAULT_BACKEND_URL);
+        return DEFAULT_BACKEND_URL;
       }
     } catch {
     }
@@ -52,6 +78,9 @@ const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit): Pr
   
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      if (!baseUrl) {
+        throw new Error('Backend URL is not set');
+      }
       console.log(`[tRPC] Fetch attempt ${attempt + 1}:`, url);
       const response = await fetch(url, {
         ...options,
