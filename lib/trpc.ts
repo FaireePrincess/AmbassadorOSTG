@@ -7,62 +7,42 @@ import type { AppRouter } from "@/backend/trpc/app-router";
 export const trpc = createTRPCReact<AppRouter>();
 
 const DEFAULT_BACKEND_URL = "https://ambassadorostg.onrender.com";
-
-const normalizeBaseUrl = (value: string): string => {
-  try {
-    const url = new URL(value);
-    return url.origin;
-  } catch (error) {
-    console.log('[tRPC] Invalid API base URL:', value, error);
-    return '';
-  }
-};
+const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
 export const getApiBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (envUrl) {
+  if (envUrl && envUrl.startsWith('http')) {
     const normalized = normalizeBaseUrl(envUrl);
-    if (normalized) {
-      console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', normalized);
-      return normalized;
-    }
+    console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', normalized);
+    return normalized;
   }
 
   if (typeof window !== 'undefined') {
     try {
       const params = new URLSearchParams(window.location.search);
       const apiParam = params.get('api');
-      if (apiParam) {
+      if (apiParam && apiParam.startsWith('http')) {
         const normalized = normalizeBaseUrl(apiParam);
-        if (normalized) {
-          try {
-            localStorage.setItem('RORK_API_BASE_URL', normalized);
-          } catch {
-          }
-          console.log('[tRPC] API base URL from query param:', normalized);
-          return normalized;
+        try {
+          localStorage.setItem('RORK_API_BASE_URL', normalized);
+        } catch {
         }
+        console.log('[tRPC] API base URL from query param:', normalized);
+        return normalized;
       }
 
       const stored = localStorage.getItem('RORK_API_BASE_URL');
-      if (stored) {
+      if (stored && stored.startsWith('http')) {
         const normalized = normalizeBaseUrl(stored);
-        if (normalized) {
-          console.log('[tRPC] API base URL from localStorage:', normalized);
-          return normalized;
-        }
-      }
-
-      if (window.location.hostname === 'ambassador-ostg.vercel.app') {
-        console.log('[tRPC] Using default backend for ambassador-ostg:', DEFAULT_BACKEND_URL);
-        return DEFAULT_BACKEND_URL;
+        console.log('[tRPC] API base URL from localStorage:', normalized);
+        return normalized;
       }
     } catch {
     }
   }
 
-  console.error('[tRPC] CRITICAL: API base URL is not set!');
-  return '';
+  console.log('[tRPC] Using default backend:', DEFAULT_BACKEND_URL);
+  return DEFAULT_BACKEND_URL;
 };
 
 export const isBackendEnabled = () => !!getApiBaseUrl();
