@@ -8,6 +8,7 @@ import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
 import { getApiBaseUrl } from '@/lib/trpc';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type AuthMode = 'login' | 'activate';
 
@@ -137,6 +138,31 @@ export default function LoginScreen() {
                 }}
               >
                 <Text style={styles.debugButtonText}>Save & Reload</Text>
+              </PressableScale>
+              <PressableScale
+                style={styles.debugClearButton}
+                onPress={async () => {
+                  try {
+                    await AsyncStorage.multiRemove([
+                      'auth_user',
+                      'app_users',
+                      'ambassador_tasks',
+                      'ambassador_assets',
+                      'ambassador_events',
+                      'ambassador_submissions',
+                      'ambassador_rsvps',
+                      'ambassador_feed',
+                    ]);
+                    Alert.alert('Debug', 'Local cache cleared. Reloading...');
+                    if (typeof window !== 'undefined') {
+                      window.location.reload();
+                    }
+                  } catch {
+                    Alert.alert('Debug', 'Failed to clear local cache');
+                  }
+                }}
+              >
+                <Text style={styles.debugClearButtonText}>Clear Local Cache</Text>
               </PressableScale>
             </View>
           )}
@@ -469,6 +495,20 @@ const styles = StyleSheet.create({
   },
   debugButtonText: {
     color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  debugClearButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  debugClearButtonText: {
+    color: Colors.dark.textSecondary,
     fontSize: 12,
     fontWeight: '700' as const,
   },
