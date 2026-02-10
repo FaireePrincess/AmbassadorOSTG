@@ -12,7 +12,7 @@ console.log('[Backend] Starting Ambassador OS API...');
 app.use("*", cors());
 
 app.use(
-  "/trpc/*",
+  "/api/trpc/*",
   trpcServer({
     endpoint: "/api/trpc",
     router: appRouter,
