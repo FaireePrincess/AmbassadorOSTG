@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Redirect } from 'expo-router';
@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
+import { getApiBaseUrl } from '@/lib/trpc';
 
 type AuthMode = 'login' | 'activate';
 
@@ -21,6 +22,16 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const debugEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('debug') === '1';
+    } catch {
+      return false;
+    }
+  }, []);
+  const [debugApiUrl, setDebugApiUrl] = useState(() => getApiBaseUrl());
 
   const handleLogin = useCallback(async () => {
     if (!email.trim() || !password.trim()) {
@@ -99,6 +110,36 @@ export default function LoginScreen() {
               {mode === 'login' ? 'Sign in to your account' : 'Activate your account'}
             </Text>
           </View>
+
+          {debugEnabled && (
+            <View style={styles.debugBox}>
+              <Text style={styles.debugTitle}>Debug: Backend URL</Text>
+              <Text style={styles.debugValue}>{debugApiUrl || '(empty)'}</Text>
+              <TextInput
+                style={styles.debugInput}
+                value={debugApiUrl}
+                onChangeText={setDebugApiUrl}
+                placeholder="https://ambassadorostg.onrender.com"
+                placeholderTextColor={Colors.dark.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <PressableScale
+                style={styles.debugButton}
+                onPress={() => {
+                  if (typeof window === 'undefined') return;
+                  try {
+                    localStorage.setItem('RORK_API_BASE_URL', debugApiUrl.trim());
+                    window.location.reload();
+                  } catch {
+                    Alert.alert('Debug', 'Failed to save backend URL');
+                  }
+                }}
+              >
+                <Text style={styles.debugButtonText}>Save & Reload</Text>
+              </PressableScale>
+            </View>
+          )}
 
           <View style={styles.tabContainer}>
             <PressableScale 
@@ -389,6 +430,47 @@ const styles = StyleSheet.create({
     color: Colors.dark.textMuted,
     textAlign: 'center',
     flex: 1,
+  },
+  debugBox: {
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 8,
+  },
+  debugTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.dark.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+  },
+  debugValue: {
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+  },
+  debugInput: {
+    backgroundColor: Colors.dark.background,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    color: Colors.dark.text,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  debugButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.dark.primary,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  debugButtonText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
 
 });
