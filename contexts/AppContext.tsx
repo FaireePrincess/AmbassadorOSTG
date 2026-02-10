@@ -9,7 +9,7 @@ import {
   events as mockEvents,
   submissions as mockSubmissions,
 } from '@/mocks/data';
-import { trpcClient } from '@/lib/trpc';
+import { trpcClient, isBackendEnabled } from '@/lib/trpc';
 
 const STORAGE_KEYS = {
   RSVPS: 'ambassador_rsvps',
@@ -20,7 +20,7 @@ const STORAGE_KEYS = {
   SUBMISSIONS: 'ambassador_submissions',
 };
 
-const BACKEND_ENABLED = !!process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+const BACKEND_ENABLED = isBackendEnabled();
 
 async function loadStoredList<T>(key: string, fallback: T[]): Promise<T[]> {
   try {

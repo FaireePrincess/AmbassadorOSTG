@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
 import { allUsers as mockUsers } from '@/mocks/data';
-import { trpcClient } from '@/lib/trpc';
+import { trpcClient, isBackendEnabled } from '@/lib/trpc';
 
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
-const BACKEND_ENABLED = !!process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+const BACKEND_ENABLED = isBackendEnabled();
 
 interface AuthContextType {
   currentUser: User | null;

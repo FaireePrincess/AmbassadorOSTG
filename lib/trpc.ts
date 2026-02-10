@@ -6,17 +6,42 @@ import type { AppRouter } from "@/backend/trpc/app-router";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-const getBaseUrl = () => {
-  const url = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', url ? url : '(not set)');
-  if (!url) {
-    console.error('[tRPC] CRITICAL: EXPO_PUBLIC_RORK_API_BASE_URL is not set!');
-    return '';
+export const getApiBaseUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  if (envUrl) {
+    console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', envUrl);
+    return envUrl;
   }
-  return url;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const apiParam = params.get('api');
+      if (apiParam) {
+        try {
+          localStorage.setItem('RORK_API_BASE_URL', apiParam);
+        } catch {
+        }
+        console.log('[tRPC] API base URL from query param:', apiParam);
+        return apiParam;
+      }
+
+      const stored = localStorage.getItem('RORK_API_BASE_URL');
+      if (stored) {
+        console.log('[tRPC] API base URL from localStorage:', stored);
+        return stored;
+      }
+    } catch {
+    }
+  }
+
+  console.error('[tRPC] CRITICAL: API base URL is not set!');
+  return '';
 };
 
-const baseUrl = getBaseUrl();
+export const isBackendEnabled = () => !!getApiBaseUrl();
+
+const baseUrl = getApiBaseUrl();
 console.log('[tRPC] Full API URL:', `${baseUrl}/api/trpc`);
 
 const MAX_RETRIES = 2;
