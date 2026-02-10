@@ -7,7 +7,7 @@ import type { AppRouter } from "@/backend/trpc/app-router";
 export const trpc = createTRPCReact<AppRouter>();
 
 const DEFAULT_BACKEND_URL = "https://ambassadorostg.onrender.com";
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
+const normalizeBaseUrl = (value: string): string => value.trim().replace(/\/+$/, '');
 
 export const getApiBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
