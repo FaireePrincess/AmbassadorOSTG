@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
+import { getStorageDiagnostics } from "./db";
 
 const app = new Hono();
 
@@ -22,6 +23,11 @@ app.use(
 
 app.get("/", (c) => {
   return c.json({ status: "ok", message: "Ambassador OS API is running" });
+});
+
+app.get("/debug/storage", async (c) => {
+  const diagnostics = await getStorageDiagnostics();
+  return c.json({ status: "ok", diagnostics });
 });
 
 export default app;

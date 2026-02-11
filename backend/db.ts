@@ -298,3 +298,49 @@ export const db = {
   upsert,
   initializeCollection,
 };
+
+export async function getStorageDiagnostics() {
+  const config = getConfig();
+  const remoteDbConfigured = hasRemoteDbConfig();
+  const fs = await getFs();
+
+  let canWriteDataDir = false;
+  let dataFileExists = false;
+  let dataFileSizeBytes = 0;
+
+  if (fs) {
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      const probePath = `${DATA_DIR}/.write-test`;
+      await fs.writeFile(probePath, String(Date.now()), "utf8");
+      await fs.unlink(probePath);
+      canWriteDataDir = true;
+    } catch {
+      canWriteDataDir = false;
+    }
+
+    try {
+      const stat = await fs.stat(DATA_FILE);
+      dataFileExists = true;
+      dataFileSizeBytes = Number(stat.size || 0);
+    } catch {
+      dataFileExists = false;
+      dataFileSizeBytes = 0;
+    }
+  }
+
+  return {
+    mode: remoteDbConfigured ? "remote-db" : "file-or-memory",
+    remoteDbConfigured,
+    endpointConfigured: !!config?.endpoint,
+    namespaceConfigured: !!config?.namespace,
+    tokenConfigured: !!config?.token,
+    dataDir: DATA_DIR,
+    dataFile: DATA_FILE,
+    fsAvailable,
+    canWriteDataDir,
+    dataFileExists,
+    dataFileSizeBytes,
+    fileStoreLoaded,
+  };
+}
