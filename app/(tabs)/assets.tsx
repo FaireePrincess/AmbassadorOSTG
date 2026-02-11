@@ -47,6 +47,21 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_GAP = 16;
 const HORIZONTAL_PADDING = 20;
 const CARD_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - CARD_GAP) / 2;
+type FileInputMode = 'upload' | 'url';
+const INLINE_FILE_LIMIT_BYTES = 225_000;
+
+function estimateDataUriBytes(value: string): number | null {
+  if (!value.startsWith('data:')) return null;
+  const base64 = value.split(',')[1] || '';
+  if (!base64) return null;
+  return Math.floor((base64.length * 3) / 4);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export default function AssetsScreen() {
   const { isAdmin } = useAuth();
@@ -56,6 +71,8 @@ export default function AssetsScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fileInputMode, setFileInputMode] = useState<FileInputMode>('upload');
+  const [uploadFileSizeBytes, setUploadFileSizeBytes] = useState<number | null>(null);
 
   const [customFolderLabels, setCustomFolderLabels] = useState<Record<FolderKey, string>>({} as Record<FolderKey, string>);
   const [editingFolder, setEditingFolder] = useState<FolderKey | null>(null);
@@ -161,6 +178,8 @@ export default function AssetsScreen() {
       format: '',
       size: '',
     });
+    setFileInputMode('upload');
+    setUploadFileSizeBytes(null);
     setEditingAsset(null);
   }, []);
 
@@ -170,6 +189,10 @@ export default function AssetsScreen() {
   }, [resetForm]);
 
   const openEditModal = useCallback((asset: Asset) => {
+    const initialUrl = asset.url || '';
+    const initialBytes = initialUrl ? estimateDataUriBytes(initialUrl) : null;
+    setFileInputMode(initialUrl && !initialUrl.startsWith('data:') ? 'url' : 'upload');
+    setUploadFileSizeBytes(initialBytes);
     setEditingAsset(asset);
     setFormData({
       name: asset.name,
@@ -489,12 +512,53 @@ export default function AssetsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Asset File *</Text>
-                <ImagePicker
-                  value={formData.url}
-                  onChange={(uri) => setFormData(prev => ({ ...prev, url: uri, thumbnail: uri }))}
-                  placeholder="Upload asset file"
-                  height={140}
-                />
+                <View style={styles.sourceRow}>
+                  <PressableScale
+                    style={[styles.sourceOption, fileInputMode === 'upload' && styles.sourceOptionActive]}
+                    onPress={() => setFileInputMode('upload')}
+                  >
+                    <Text style={[styles.sourceOptionText, fileInputMode === 'upload' && styles.sourceOptionTextActive]}>Upload</Text>
+                  </PressableScale>
+                  <PressableScale
+                    style={[styles.sourceOption, fileInputMode === 'url' && styles.sourceOptionActive]}
+                    onPress={() => setFileInputMode('url')}
+                  >
+                    <Text style={[styles.sourceOptionText, fileInputMode === 'url' && styles.sourceOptionTextActive]}>URL</Text>
+                  </PressableScale>
+                </View>
+
+                {fileInputMode === 'upload' ? (
+                  <>
+                    <ImagePicker
+                      value={formData.url}
+                      onChange={(uri) => {
+                        const size = estimateDataUriBytes(uri);
+                        setUploadFileSizeBytes(size);
+                        setFormData(prev => ({ ...prev, url: uri, thumbnail: uri }));
+                      }}
+                      placeholder="Upload asset file"
+                      height={140}
+                    />
+                    {uploadFileSizeBytes !== null && (
+                      <Text style={[styles.imageSizeText, uploadFileSizeBytes > INLINE_FILE_LIMIT_BYTES && styles.imageSizeTextWarning]}>
+                        Upload size: {formatBytes(uploadFileSizeBytes)} (recommended under {formatBytes(INLINE_FILE_LIMIT_BYTES)})
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <TextInput
+                    style={styles.input}
+                    value={formData.url}
+                    onChangeText={(text) => {
+                      setUploadFileSizeBytes(null);
+                      setFormData(prev => ({ ...prev, url: text, thumbnail: text }));
+                    }}
+                    placeholder="https://..."
+                    placeholderTextColor={Colors.dark.textMuted}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -744,12 +808,53 @@ export default function AssetsScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Asset File *</Text>
-              <ImagePicker
-                value={formData.url}
-                onChange={(uri) => setFormData(prev => ({ ...prev, url: uri, thumbnail: uri }))}
-                placeholder="Upload asset file"
-                height={140}
-              />
+              <View style={styles.sourceRow}>
+                <PressableScale
+                  style={[styles.sourceOption, fileInputMode === 'upload' && styles.sourceOptionActive]}
+                  onPress={() => setFileInputMode('upload')}
+                >
+                  <Text style={[styles.sourceOptionText, fileInputMode === 'upload' && styles.sourceOptionTextActive]}>Upload</Text>
+                </PressableScale>
+                <PressableScale
+                  style={[styles.sourceOption, fileInputMode === 'url' && styles.sourceOptionActive]}
+                  onPress={() => setFileInputMode('url')}
+                >
+                  <Text style={[styles.sourceOptionText, fileInputMode === 'url' && styles.sourceOptionTextActive]}>URL</Text>
+                </PressableScale>
+              </View>
+
+              {fileInputMode === 'upload' ? (
+                <>
+                  <ImagePicker
+                    value={formData.url}
+                    onChange={(uri) => {
+                      const size = estimateDataUriBytes(uri);
+                      setUploadFileSizeBytes(size);
+                      setFormData(prev => ({ ...prev, url: uri, thumbnail: uri }));
+                    }}
+                    placeholder="Upload asset file"
+                    height={140}
+                  />
+                  {uploadFileSizeBytes !== null && (
+                    <Text style={[styles.imageSizeText, uploadFileSizeBytes > INLINE_FILE_LIMIT_BYTES && styles.imageSizeTextWarning]}>
+                      Upload size: {formatBytes(uploadFileSizeBytes)} (recommended under {formatBytes(INLINE_FILE_LIMIT_BYTES)})
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  value={formData.url}
+                  onChangeText={(text) => {
+                    setUploadFileSizeBytes(null);
+                    setFormData(prev => ({ ...prev, url: text, thumbnail: text }));
+                  }}
+                  placeholder="https://..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -1138,6 +1243,40 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  sourceOption: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sourceOptionActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
+  },
+  sourceOptionText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  sourceOptionTextActive: {
+    color: Colors.dark.primary,
+  },
+  imageSizeText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  imageSizeTextWarning: {
+    color: Colors.dark.warning,
   },
   row: {
     flexDirection: 'row',

@@ -15,8 +15,23 @@ import { Platform as PlatformType, Task } from '@/types';
 import ImagePicker from '@/components/ImagePicker';
 
 type FilterType = 'all' | 'twitter' | 'instagram' | 'tiktok' | 'youtube';
+type ImageInputMode = 'upload' | 'url';
 
 const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube'];
+const INLINE_IMAGE_LIMIT_BYTES = 225_000;
+
+function estimateDataUriBytes(value: string): number | null {
+  if (!value.startsWith('data:')) return null;
+  const base64 = value.split(',')[1] || '';
+  if (!base64) return null;
+  return Math.floor((base64.length * 3) / 4);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export default function TasksScreen() {
   const router = useRouter();
@@ -27,6 +42,8 @@ export default function TasksScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageInputMode, setImageInputMode] = useState<ImageInputMode>('upload');
+  const [uploadImageSizeBytes, setUploadImageSizeBytes] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -102,6 +119,8 @@ export default function TasksScreen() {
       deadline: '',
       points: '',
     });
+    setImageInputMode('upload');
+    setUploadImageSizeBytes(null);
     setEditingTask(null);
   }, []);
 
@@ -111,6 +130,10 @@ export default function TasksScreen() {
   }, [resetForm]);
 
   const openEditModal = useCallback((task: Task) => {
+    const initialImage = task.thumbnail || '';
+    const initialBytes = initialImage ? estimateDataUriBytes(initialImage) : null;
+    setImageInputMode(initialImage && !initialImage.startsWith('data:') ? 'url' : 'upload');
+    setUploadImageSizeBytes(initialBytes);
     setEditingTask(task);
     setFormData({
       title: task.title,
@@ -430,11 +453,52 @@ export default function TasksScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Task Image</Text>
-              <ImagePicker
-                value={formData.thumbnail}
-                onChange={(uri) => setFormData(prev => ({ ...prev, thumbnail: uri }))}
-                placeholder="Add task image"
-              />
+              <View style={styles.sourceRow}>
+                <PressableScale
+                  style={[styles.sourceOption, imageInputMode === 'upload' && styles.sourceOptionActive]}
+                  onPress={() => setImageInputMode('upload')}
+                >
+                  <Text style={[styles.sourceOptionText, imageInputMode === 'upload' && styles.sourceOptionTextActive]}>Upload</Text>
+                </PressableScale>
+                <PressableScale
+                  style={[styles.sourceOption, imageInputMode === 'url' && styles.sourceOptionActive]}
+                  onPress={() => setImageInputMode('url')}
+                >
+                  <Text style={[styles.sourceOptionText, imageInputMode === 'url' && styles.sourceOptionTextActive]}>URL</Text>
+                </PressableScale>
+              </View>
+
+              {imageInputMode === 'upload' ? (
+                <>
+                  <ImagePicker
+                    value={formData.thumbnail}
+                    onChange={(uri) => {
+                      const size = estimateDataUriBytes(uri);
+                      setUploadImageSizeBytes(size);
+                      setFormData(prev => ({ ...prev, thumbnail: uri }));
+                    }}
+                    placeholder="Add task image"
+                  />
+                  {uploadImageSizeBytes !== null && (
+                    <Text style={[styles.imageSizeText, uploadImageSizeBytes > INLINE_IMAGE_LIMIT_BYTES && styles.imageSizeTextWarning]}>
+                      Upload size: {formatBytes(uploadImageSizeBytes)} (recommended under {formatBytes(INLINE_IMAGE_LIMIT_BYTES)})
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  value={formData.thumbnail}
+                  onChangeText={(text) => {
+                    setUploadImageSizeBytes(null);
+                    setFormData(prev => ({ ...prev, thumbnail: text }));
+                  }}
+                  placeholder="https://..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -842,6 +906,40 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  sourceOption: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sourceOptionActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
+  },
+  sourceOptionText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  sourceOptionTextActive: {
+    color: Colors.dark.primary,
+  },
+  imageSizeText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  imageSizeTextWarning: {
+    color: Colors.dark.warning,
   },
   textArea: {
     minHeight: 100,
