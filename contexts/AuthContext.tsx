@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
 import { allUsers as mockUsers } from '@/mocks/data';
@@ -8,7 +7,6 @@ import { trpcClient, isBackendEnabled } from '@/lib/trpc';
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
 const BACKEND_ENABLED = isBackendEnabled();
-const AUTO_LOGOUT_ON_BACKGROUND = true;
 
 interface AuthContextType {
   currentUser: User | null;
@@ -254,20 +252,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsers([]);
     isLoggingOutRef.current = false;
   }, []);
-
-  useEffect(() => {
-    if (!AUTO_LOGOUT_ON_BACKGROUND) return;
-
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState !== 'active' && currentUser) {
-        void logout();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [currentUser, logout]);
 
   const generateInviteCode = useCallback(() => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

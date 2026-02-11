@@ -75,6 +75,7 @@ const DATA_FILE = `${DATA_DIR}/db.json`;
 const DATA_FILE_TMP = `${DATA_DIR}/db.json.tmp`;
 const DATA_FILE_BAK = `${DATA_DIR}/db.json.bak`;
 let fileStoreLoadError: string | null = null;
+let fileStorePersistError: string | null = null;
 
 async function getFs() {
   if (!fsAvailable) return null;
@@ -144,7 +145,12 @@ async function persistFileStore(): Promise<void> {
     }
 
     await fs.rename(DATA_FILE_TMP, DATA_FILE);
-  } catch {
+    fileStorePersistError = null;
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    fileStorePersistError = err?.message || 'Failed to persist file store';
+    console.log('[DB] ERROR: Failed to persist file store:', fileStorePersistError);
+    throw new Error(fileStorePersistError);
   }
 }
 
@@ -152,6 +158,9 @@ async function getMemoryCollection(collection: string): Promise<unknown[]> {
   await ensureFileStoreLoaded();
   if (fileStoreLoadError) {
     throw new Error(`File store unavailable: ${fileStoreLoadError}`);
+  }
+  if (fileStorePersistError) {
+    throw new Error(`File store persist error: ${fileStorePersistError}`);
   }
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
@@ -164,6 +173,9 @@ async function setMemoryItem(collection: string, id: string, data: unknown): Pro
   if (fileStoreLoadError) {
     throw new Error(`File store unavailable: ${fileStoreLoadError}`);
   }
+  if (fileStorePersistError) {
+    throw new Error(`File store persist error: ${fileStorePersistError}`);
+  }
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
   }
@@ -175,6 +187,9 @@ async function deleteMemoryItem(collection: string, id: string): Promise<void> {
   await ensureFileStoreLoaded();
   if (fileStoreLoadError) {
     throw new Error(`File store unavailable: ${fileStoreLoadError}`);
+  }
+  if (fileStorePersistError) {
+    throw new Error(`File store persist error: ${fileStorePersistError}`);
   }
   if (memoryStore[collection]) {
     delete memoryStore[collection][id];
@@ -384,5 +399,6 @@ export async function getStorageDiagnostics() {
     dataFileSizeBytes,
     fileStoreLoaded,
     fileStoreLoadError,
+    fileStorePersistError,
   };
 }

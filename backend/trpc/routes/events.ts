@@ -5,6 +5,14 @@ import { db } from "@/backend/db";
 import type { Event, EventType } from "@/types";
 
 const COLLECTION = "events";
+const MAX_DATA_URI_LENGTH = 450_000;
+
+function validateEventThumbnail(thumbnail: string) {
+  if (!thumbnail.startsWith("data:image/")) return;
+  if (thumbnail.length > MAX_DATA_URI_LENGTH) {
+    throw new Error("Event image is too large. Please use a smaller image.");
+  }
+}
 
 async function ensureInitialized(): Promise<void> {
   const dbEvents = await db.getCollection<Event>(COLLECTION);
@@ -63,6 +71,7 @@ export const eventsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateEventThumbnail(input.thumbnail);
       const newEvent: Event = {
         id: `event-${Date.now()}`,
         title: input.title,
@@ -106,6 +115,10 @@ export const eventsRouter = createTRPCRouter({
       const existing = events.find((e) => e.id === input.id);
       if (!existing) {
         throw new Error("Event not found");
+      }
+
+      if (input.thumbnail) {
+        validateEventThumbnail(input.thumbnail);
       }
       
       const updatedEvent = { ...existing, ...input } as Event;
