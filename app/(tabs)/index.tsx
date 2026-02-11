@@ -7,6 +7,7 @@ import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { isBackendEnabled } from '@/lib/trpc';
 import StatCard from '@/components/StatCard';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
@@ -15,6 +16,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { currentUser, users } = useAuth();
   const { isRefreshing, refreshData, tasks, submissions, ambassadorFeed } = useApp();
+  const backendEnabled = isBackendEnabled();
 
   const activeTasks = useMemo(() => 
     tasks.filter(t => t.status === 'active').slice(0, 3),
@@ -22,11 +24,11 @@ export default function HomeScreen() {
   );
   
   const feedPosts = useMemo(() => {
-    if (ambassadorFeed.length > 0) {
+    if (backendEnabled) {
       return ambassadorFeed;
     }
     return mockPosts;
-  }, [ambassadorFeed]);
+  }, [ambassadorFeed, backendEnabled]);
   
   const topPosts = feedPosts.slice(0, 2);
   const allPosts = feedPosts.slice(0, 20);

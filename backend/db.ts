@@ -29,9 +29,15 @@ function getEnvVar(key: string): string | undefined {
 }
 
 function getDbConfig() {
-  const endpoint = getEnvVar('EXPO_PUBLIC_RORK_DB_ENDPOINT');
-  const namespace = getEnvVar('EXPO_PUBLIC_RORK_DB_NAMESPACE');
-  const token = getEnvVar('EXPO_PUBLIC_RORK_DB_TOKEN');
+  const endpoint =
+    getEnvVar('EXPO_PUBLIC_RORK_DB_ENDPOINT') ||
+    getEnvVar('RORK_DB_ENDPOINT');
+  const namespace =
+    getEnvVar('EXPO_PUBLIC_RORK_DB_NAMESPACE') ||
+    getEnvVar('RORK_DB_NAMESPACE');
+  const token =
+    getEnvVar('EXPO_PUBLIC_RORK_DB_TOKEN') ||
+    getEnvVar('RORK_DB_TOKEN');
   
   console.log('[DB] Config check - endpoint:', endpoint ? 'SET' : 'MISSING', 'namespace:', namespace || 'MISSING', 'token:', token ? 'SET' : 'MISSING');
   
@@ -47,6 +53,11 @@ function getConfig() {
     dbConfig = getDbConfig();
   }
   return dbConfig;
+}
+
+function hasRemoteDbConfig() {
+  const config = getConfig();
+  return !!(config.endpoint && config.token);
 }
 
 interface DbRecord {
@@ -138,7 +149,10 @@ async function makeRequest(path: string, method: string, body?: unknown) {
     return null;
   }
 
-  const url = `${config.endpoint}/${config.namespace}${path}`;
+  const endpoint = config.endpoint.replace(/\/+$/, "");
+  const namespace = (config.namespace || "").trim().replace(/^\/+|\/+$/g, "");
+  const namespacePrefix = namespace ? `/${namespace}` : "";
+  const url = `${endpoint}${namespacePrefix}${path}`;
   console.log(`[DB] ${method} ${url}`);
 
   try {
@@ -167,6 +181,7 @@ async function makeRequest(path: string, method: string, body?: unknown) {
 }
 
 export async function getCollection<T extends DbRecord>(collection: string): Promise<T[]> {
+  const remoteConfigured = hasRemoteDbConfig();
   const result = await makeRequest(`/${collection}`, "GET");
   if (result && Array.isArray(result)) {
     return result as T[];
@@ -174,11 +189,15 @@ export async function getCollection<T extends DbRecord>(collection: string): Pro
   if (result && result.data && Array.isArray(result.data)) {
     return result.data as T[];
   }
+  if (remoteConfigured) {
+    throw new Error(`Failed to read ${collection} from configured database`);
+  }
   // Fallback to memory
   return (await getMemoryCollection(collection)) as T[];
 }
 
 export async function getById<T extends DbRecord>(collection: string, id: string): Promise<T | null> {
+  const remoteConfigured = hasRemoteDbConfig();
   const result = await makeRequest(`/${collection}/${id}`, "GET");
   if (result && result.id) {
     return result as T;
@@ -186,14 +205,21 @@ export async function getById<T extends DbRecord>(collection: string, id: string
   if (result && result.data) {
     return result.data as T;
   }
+  if (remoteConfigured) {
+    throw new Error(`Failed to read ${collection}/${id} from configured database`);
+  }
   // Fallback to memory
   const items = (await getMemoryCollection(collection)) as T[];
   return items.find(item => item.id === id) || null;
 }
 
 export async function create<T extends DbRecord>(collection: string, data: T): Promise<T> {
+  const remoteConfigured = hasRemoteDbConfig();
   const result = await makeRequest(`/${collection}`, "POST", data);
   if (!result) {
+    if (remoteConfigured) {
+      throw new Error(`Failed to create ${collection}/${data.id} in configured database`);
+    }
     // Use memory fallback
     await setMemoryItem(collection, data.id, data);
     console.log(`[DB] Created ${collection} (memory):`, data.id);
@@ -204,8 +230,12 @@ export async function create<T extends DbRecord>(collection: string, data: T): P
 }
 
 export async function update<T extends DbRecord>(collection: string, id: string, data: Partial<T>): Promise<T | null> {
+  const remoteConfigured = hasRemoteDbConfig();
   const result = await makeRequest(`/${collection}/${id}`, "PUT", data);
   if (!result) {
+    if (remoteConfigured) {
+      throw new Error(`Failed to update ${collection}/${id} in configured database`);
+    }
     // Use memory fallback
     const existing = (await getMemoryCollection(collection) as T[]).find(item => item.id === id);
     if (existing) {
@@ -221,8 +251,12 @@ export async function update<T extends DbRecord>(collection: string, id: string,
 }
 
 export async function remove(collection: string, id: string): Promise<boolean> {
+  const remoteConfigured = hasRemoteDbConfig();
   const result = await makeRequest(`/${collection}/${id}`, "DELETE");
   if (!result) {
+    if (remoteConfigured) {
+      throw new Error(`Failed to delete ${collection}/${id} in configured database`);
+    }
     // Use memory fallback
     await deleteMemoryItem(collection, id);
     console.log(`[DB] Deleted ${collection} (memory):`, id);

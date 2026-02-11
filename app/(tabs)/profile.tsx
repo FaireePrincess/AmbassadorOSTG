@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
@@ -13,13 +13,14 @@ import StatusBadge from '@/components/StatusBadge';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
+import ImagePicker from '@/components/ImagePicker';
 
 type TabType = 'submissions' | 'stats';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { isRefreshing, refreshData } = useApp();
-  const { currentUser, logout, changePassword } = useAuth();
+  const { currentUser, logout, changePassword, updateProfile } = useAuth();
   const sortedSubmissions = useUserSubmissions(currentUser?.id);
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
   const [editTiktok, setEditTiktok] = useState(currentUser?.handles?.tiktok || '');
   const [editDiscord, setEditDiscord] = useState(currentUser?.handles?.discord || '');
   const [editFslEmail, setEditFslEmail] = useState(currentUser?.fslEmail || '');
+  const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -38,6 +40,7 @@ export default function ProfileScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const handleRefresh = useCallback(() => {
     refreshData();
@@ -51,6 +54,7 @@ export default function ProfileScreen() {
     setEditTiktok(currentUser.handles?.tiktok || '');
     setEditDiscord(currentUser.handles?.discord || '');
     setEditFslEmail(currentUser.fslEmail || '');
+    setEditAvatar(currentUser.avatar || '');
     setIsEditModalVisible(true);
   }, [currentUser]);
 
@@ -73,16 +77,51 @@ export default function ProfileScreen() {
     );
   }, [logout, router]);
 
-  const handleSaveProfile = useCallback(() => {
+  const openPostUrl = useCallback((url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Could not open link');
+    });
+  }, []);
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!currentUser) return;
+
     if (!editName.trim()) {
       Alert.alert('Error', 'Name cannot be empty');
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    const cleanHandle = (value: string) => {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+
+    const result = await updateProfile({
+      name: editName.trim(),
+      avatar: editAvatar.trim() || currentUser.avatar,
+      fslEmail: cleanHandle(editFslEmail),
+      handles: {
+        twitter: cleanHandle(editTwitter),
+        instagram: cleanHandle(editInstagram),
+        tiktok: cleanHandle(editTiktok),
+        discord: cleanHandle(editDiscord),
+      },
+    });
+
+    setIsSavingProfile(false);
+
+    if (!result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', result.error || 'Failed to update profile');
       return;
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsEditModalVisible(false);
     Alert.alert('Success', 'Profile updated successfully!');
-  }, [editName]);
+  }, [currentUser, editAvatar, editDiscord, editFslEmail, editInstagram, editName, editTiktok, editTwitter, updateProfile]);
 
   const openPasswordModal = useCallback(() => {
     setCurrentPassword('');
@@ -353,7 +392,7 @@ export default function ProfileScreen() {
                     <Text style={styles.submissionDate}>
                       Submitted {new Date(submission.submittedAt).toLocaleDateString()}
                     </Text>
-                    <PressableScale style={styles.viewPostBtn}>
+                    <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(submission.postUrl)}>
                       <ExternalLink size={14} color={Colors.dark.primary} />
                       <Text style={styles.viewPostText}>View Post</Text>
                     </PressableScale>
@@ -414,10 +453,13 @@ export default function ProfileScreen() {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarSection}>
-              <Image source={{ uri: user.avatar }} style={styles.editAvatar} />
-              <PressableScale style={styles.changeAvatarBtn}>
-                <Text style={styles.changeAvatarText}>Change Photo</Text>
-              </PressableScale>
+              <ImagePicker
+                value={editAvatar}
+                onChange={setEditAvatar}
+                placeholder="Tap to upload profile photo"
+                aspectRatio={[1, 1]}
+                height={180}
+              />
             </View>
 
             <View style={styles.inputGroup}>
@@ -520,7 +562,7 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <PressableScale style={styles.saveButton} onPress={handleSaveProfile} hapticType="medium">
+            <PressableScale style={[styles.saveButton, isSavingProfile && styles.saveButtonDisabled]} onPress={handleSaveProfile} hapticType="medium" disabled={isSavingProfile}>
               <Text style={styles.saveButtonText}>Save Changes</Text>
             </PressableScale>
 

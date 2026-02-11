@@ -64,6 +64,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           backendEvents,
           backendAssets,
           backendSubmissions,
+          backendFeed,
           storedRsvps,
         ] = await Promise.all([
           trpcClient.tasks.list.query().catch((e) => {
@@ -82,6 +83,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
             console.log('[AppContext] Failed to fetch submissions from backend:', e);
             return [] as Submission[];
           }),
+          trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch((e) => {
+            console.log('[AppContext] Failed to fetch ambassador feed from backend:', e);
+            return [] as AmbassadorPost[];
+          }),
           AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
         ]);
 
@@ -89,7 +94,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         setEvents(backendEvents);
         setAssets(backendAssets);
         setSubmissions(backendSubmissions);
-        setAmbassadorFeed(mockAmbassadorPosts);
+        setAmbassadorFeed(backendFeed);
 
         if (storedRsvps) {
           try {
@@ -109,12 +114,14 @@ export const [AppProvider, useApp] = createContextHook(() => {
         storedEvents,
         storedAssets,
         storedSubmissions,
+        storedFeed,
         storedRsvps,
       ] = await Promise.all([
         loadStoredList(STORAGE_KEYS.TASKS, mockTasks),
         loadStoredList(STORAGE_KEYS.EVENTS, mockEvents),
         loadStoredList(STORAGE_KEYS.ASSETS, mockAssets),
         loadStoredList(STORAGE_KEYS.SUBMISSIONS, mockSubmissions),
+        loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, mockAmbassadorPosts),
         AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
       ]);
 
@@ -122,7 +129,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setEvents(storedEvents);
       setAssets(storedAssets);
       setSubmissions(storedSubmissions);
-      setAmbassadorFeed(mockAmbassadorPosts);
+      setAmbassadorFeed(storedFeed);
 
       if (storedRsvps) {
         try {
@@ -231,6 +238,11 @@ export const [AppProvider, useApp] = createContextHook(() => {
           feedback,
           metrics,
         });
+
+        const backendFeed = await trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch((e) => {
+          console.log('[AppContext] Failed to refresh ambassador feed after review:', e);
+          return [] as AmbassadorPost[];
+        });
         
         setSubmissions(prev => prev.map(s => 
           s.id === submissionId 
@@ -244,6 +256,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
               }
             : s
         ));
+        setAmbassadorFeed(backendFeed);
 
         console.log('[AppContext] Submission reviewed in backend:', submissionId, status);
         return { success: true };

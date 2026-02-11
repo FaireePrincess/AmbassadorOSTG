@@ -20,6 +20,12 @@ interface AuthContextType {
   createUser: (userData: Omit<User, 'id' | 'inviteCode' | 'status' | 'stats' | 'joinedAt'>) => Promise<{ success: boolean; inviteCode?: string; error?: string }>;
   updateUserStatus: (userId: string, status: User['status']) => Promise<{ success: boolean; error?: string }>;
   deleteUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (updates: {
+    name?: string;
+    avatar?: string;
+    handles?: User['handles'];
+    fslEmail?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   changePassword: (userId: string, newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsers: () => Promise<void>;
   clearStorage: () => Promise<void>;
@@ -32,12 +38,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const syncCurrentUserRecord = useCallback(async (updatedUsers: User[]) => {
+    if (!currentUser) return;
+    const latest = updatedUsers.find((u) => u.id === currentUser.id);
+    if (!latest) return;
+
+    setCurrentUser(latest);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+  }, [currentUser]);
+
   const loadUsers = useCallback(async () => {
     try {
       if (BACKEND_ENABLED) {
         const backendUsers = await trpcClient.users.list.query();
         setUsers(backendUsers);
         await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(backendUsers));
+        await syncCurrentUserRecord(backendUsers);
         return backendUsers;
       }
 
@@ -45,11 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedUsers) {
         const parsed = JSON.parse(storedUsers);
         setUsers(parsed);
+        await syncCurrentUserRecord(parsed);
         return parsed;
       }
       // Initialize with mock users
       await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockUsers));
       setUsers(mockUsers);
+      await syncCurrentUserRecord(mockUsers);
       return mockUsers;
     } catch (error) {
       console.log('[Auth] Error loading users:', error);
@@ -58,13 +76,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedUsers) {
           const parsed = JSON.parse(storedUsers);
           setUsers(parsed);
+          await syncCurrentUserRecord(parsed);
           return parsed;
         }
       }
       setUsers(mockUsers);
+      await syncCurrentUserRecord(mockUsers);
       return mockUsers;
     }
-  }, []);
+  }, [syncCurrentUserRecord]);
 
   const saveUsers = useCallback(async (updatedUsers: User[]) => {
     try {
@@ -233,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: userData.email,
           role: userData.role,
           region: userData.region,
+          fslEmail: userData.fslEmail,
           handles: userData.handles || {},
         });
         await loadUsers();
@@ -351,6 +372,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [currentUser, saveUsers, users, loadUsers]);
 
+  const updateProfile = useCallback(async (updates: {
+    name?: string;
+    avatar?: string;
+    handles?: User['handles'];
+    fslEmail?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'No active user session' };
+    }
+
+    if (BACKEND_ENABLED) {
+      try {
+        const updated = await trpcClient.users.update.mutate({
+          id: currentUser.id,
+          name: updates.name,
+          avatar: updates.avatar,
+          handles: updates.handles,
+          fslEmail: updates.fslEmail,
+        });
+
+        setCurrentUser(updated);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        await loadUsers();
+        return { success: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to update profile';
+        return { success: false, error: message };
+      }
+    }
+
+    const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
+    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const userIndex = currentUsers.findIndex((u: User) => u.id === currentUser.id);
+    if (userIndex === -1) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const updatedUser: User = {
+      ...currentUsers[userIndex],
+      ...updates,
+      handles: updates.handles ?? currentUsers[userIndex].handles,
+    };
+
+    currentUsers[userIndex] = updatedUser;
+    await saveUsers(currentUsers);
+    setCurrentUser(updatedUser);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+    return { success: true };
+  }, [currentUser, loadUsers, saveUsers]);
+
   const changePassword = useCallback(async (userId: string, newPassword: string, currentPassword?: string): Promise<{ success: boolean; error?: string }> => {
     if (currentUser?.id !== userId && currentUser?.role !== 'admin') {
       return { success: false, error: 'You can only change your own password' };
@@ -431,10 +502,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     createUser,
     updateUserStatus,
     deleteUser,
+    updateProfile,
     changePassword,
     refreshUsers,
     clearStorage,
-  }), [currentUser, users, isAuthenticated, isLoading, isAdmin, login, logout, activateAccount, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers, clearStorage]);
+  }), [currentUser, users, isAuthenticated, isLoading, isAdmin, login, logout, activateAccount, createUser, updateUserStatus, deleteUser, updateProfile, changePassword, refreshUsers, clearStorage]);
 
   return (
     <AuthContext.Provider value={value}>

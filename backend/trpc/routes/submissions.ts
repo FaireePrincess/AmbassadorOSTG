@@ -146,6 +146,13 @@ export const submissionsRouter = createTRPCRouter({
       };
       
       await db.create(SUBMISSIONS_COLLECTION, newSubmission);
+
+      const task = await db.getById<{ id: string; submissions: number }>("tasks", input.taskId);
+      if (task) {
+        await db.update<{ id: string; submissions: number }>("tasks", input.taskId, {
+          submissions: (task.submissions || 0) + 1,
+        });
+      }
       
       console.log("[Submissions] Created new submission:", newSubmission.id);
       return newSubmission;
@@ -184,9 +191,31 @@ export const submissionsRouter = createTRPCRouter({
       
       await db.update(SUBMISSIONS_COLLECTION, input.id, updatedSubmission);
 
-      if (input.status === "approved") {
+      const wasApproved = submission.status === "approved";
+      const isNowApproved = input.status === "approved";
+      if (!wasApproved && isNowApproved) {
         const user = await getUserInfo(submission.userId);
         if (user) {
+          const approvedMetrics = input.metrics || submission.metrics || {
+            impressions: 0,
+            likes: 0,
+            comments: 0,
+            shares: 0,
+          };
+          const approvedScore = input.rating?.totalScore || 0;
+
+          await db.update<User>("users", user.id, {
+            points: user.points + approvedScore,
+            stats: {
+              ...user.stats,
+              totalPosts: user.stats.totalPosts + 1,
+              totalImpressions: user.stats.totalImpressions + approvedMetrics.impressions,
+              totalLikes: user.stats.totalLikes + approvedMetrics.likes,
+              totalRetweets: user.stats.totalRetweets + approvedMetrics.shares,
+              completedTasks: user.stats.completedTasks + 1,
+            },
+          });
+
           const newPost: AmbassadorPost = {
             id: `post-${Date.now()}`,
             userId: submission.userId,
@@ -198,12 +227,7 @@ export const submissionsRouter = createTRPCRouter({
             content: submission.notes || `Post for ${submission.taskTitle}`,
             postUrl: submission.postUrl,
             thumbnail: submission.screenshotUrl,
-            metrics: input.metrics || {
-              impressions: 0,
-              likes: 0,
-              comments: 0,
-              shares: 0,
-            },
+            metrics: approvedMetrics,
             postedAt: submission.submittedAt,
           };
           

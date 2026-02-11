@@ -123,6 +123,7 @@ export const usersRouter = createTRPCRouter({
         email: z.string(),
         role: z.enum(["ambassador", "regional_lead", "admin"]),
         region: z.string(),
+        fslEmail: z.string().optional(),
         handles: z.object({
           twitter: z.string().optional(),
           instagram: z.string().optional(),
@@ -141,6 +142,7 @@ export const usersRouter = createTRPCRouter({
         email: input.email,
         role: input.role as UserRole,
         region: input.region,
+        fslEmail: input.fslEmail,
         points: 0,
         rank: 0,
         status: "pending" as UserStatus,
@@ -177,6 +179,7 @@ export const usersRouter = createTRPCRouter({
         role: z.enum(["ambassador", "regional_lead", "admin"]).optional(),
         region: z.string().optional(),
         status: z.enum(["pending", "active", "suspended"]).optional(),
+        fslEmail: z.string().optional(),
         handles: z.object({
           twitter: z.string().optional(),
           instagram: z.string().optional(),
