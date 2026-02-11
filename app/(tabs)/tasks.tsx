@@ -268,7 +268,7 @@ export default function TasksScreen() {
             >
               {activeCampaigns.map((campaign, index) => (
                 <PressableScale key={`campaign-${index}`} style={styles.campaignCard} testID={`campaign-${index}`}>
-                  <Image source={{ uri: campaign.thumbnail }} style={styles.campaignImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+                  <Image source={{ uri: campaign.thumbnail }} style={styles.campaignImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                   <View style={styles.campaignGradient} />
                   <View style={styles.campaignOverlay}>
                     <View style={styles.campaignPlatforms}>
@@ -325,7 +325,7 @@ export default function TasksScreen() {
                   </View>
                 )}
                 {task.thumbnail && (
-                  <Image source={{ uri: task.thumbnail }} style={styles.taskThumbnail} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+                  <Image source={{ uri: task.thumbnail }} style={styles.taskThumbnail} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                 )}
                 <View style={styles.taskContent}>
                   <View style={styles.taskHeader}>

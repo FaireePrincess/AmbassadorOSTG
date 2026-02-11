@@ -7,6 +7,8 @@ import type { Submission, SubmissionStatus, Platform, AmbassadorPost, User } fro
 const SUBMISSIONS_COLLECTION = "submissions";
 const POSTS_COLLECTION = "ambassador_posts";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
+const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
 const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 
 function validateScreenshot(screenshotUrl?: string) {
@@ -14,6 +16,12 @@ function validateScreenshot(screenshotUrl?: string) {
   if (screenshotUrl.startsWith("data:image/") && screenshotUrl.length > MAX_IMAGE_DATA_URI_LENGTH) {
     throw new Error("Submission screenshot is too large. Please use a smaller image.");
   }
+}
+
+function sanitizeAvatar(avatar?: string): string {
+  if (!avatar) return DEFAULT_AVATAR;
+  if (!avatar.startsWith(ALLOWED_AVATAR_PREFIX)) return DEFAULT_AVATAR;
+  return avatar;
 }
 
 async function ensureSubmissionsInitialized(): Promise<void> {
@@ -234,7 +242,7 @@ export const submissionsRouter = createTRPCRouter({
             id: `post-${Date.now()}`,
             userId: submission.userId,
             userName: user.name,
-            userAvatar: user.avatar,
+            userAvatar: sanitizeAvatar(user.avatar),
             userRegion: user.region,
             platform: submission.platform,
             campaignTitle: submission.campaignTitle,
@@ -261,7 +269,10 @@ export const submissionsRouter = createTRPCRouter({
       const limit = input?.limit || 20;
       console.log("[Submissions] Fetching ambassador feed, limit:", limit);
       const posts = await getPosts();
-      return posts.slice(0, limit);
+      return posts.slice(0, limit).map((post) => ({
+        ...post,
+        userAvatar: sanitizeAvatar(post.userAvatar),
+      }));
     }),
 
   delete: publicProcedure

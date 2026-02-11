@@ -25,20 +25,41 @@ function sanitizeAvatar(avatar?: string): string {
   return avatar;
 }
 
+function sanitizeUser(user: User): User {
+  return {
+    ...user,
+    avatar: sanitizeAvatar(user.avatar),
+  };
+}
+
+async function sanitizeAndPersistUsers(users: User[]): Promise<User[]> {
+  const normalized = users.map(sanitizeUser);
+  const updates: Promise<unknown>[] = [];
+  for (let i = 0; i < users.length; i++) {
+    if (users[i].avatar !== normalized[i].avatar) {
+      updates.push(db.update(COLLECTION, users[i].id, { avatar: normalized[i].avatar }));
+    }
+  }
+  if (updates.length > 0) {
+    await Promise.all(updates);
+  }
+  return normalized;
+}
+
 async function getUsers(forceRefresh = false): Promise<User[]> {
   if (!initialized || forceRefresh) {
     const dbUsers = await db.getCollection<User>(COLLECTION);
     if (dbUsers.length === 0 && !initialized && ENABLE_DEFAULT_SEEDING) {
       console.log("[Users] No users in DB, initializing with defaults");
       for (const user of initialUsers) {
-        await db.create(COLLECTION, user);
+        await db.create(COLLECTION, sanitizeUser(user));
       }
-      usersCache = [...initialUsers];
+      usersCache = await sanitizeAndPersistUsers(initialUsers);
     } else if (dbUsers.length === 0 && !initialized) {
       console.log("[Users] Collection empty, seeding disabled");
       usersCache = [];
     } else {
-      usersCache = dbUsers;
+      usersCache = await sanitizeAndPersistUsers(dbUsers);
     }
     initialized = true;
   }
@@ -49,7 +70,7 @@ export const usersRouter = createTRPCRouter({
   list: publicProcedure.query(async () => {
     const users = await getUsers(true);
     console.log("[Users] Fetching all users from DB, count:", users.length);
-    return users;
+    return users.map(sanitizeUser);
   }),
 
   getById: publicProcedure
@@ -61,7 +82,7 @@ export const usersRouter = createTRPCRouter({
       if (!user) {
         throw new Error("User not found");
       }
-      return user;
+      return sanitizeUser(user);
     }),
 
   getByEmail: publicProcedure
@@ -70,7 +91,7 @@ export const usersRouter = createTRPCRouter({
       console.log("[Users] Fetching user by email:", input.email);
       const users = await getUsers();
       const user = users.find((u) => u.email.toLowerCase() === input.email.toLowerCase());
-      return user || null;
+      return user ? sanitizeUser(user) : null;
     }),
 
   login: publicProcedure
@@ -88,7 +109,7 @@ export const usersRouter = createTRPCRouter({
         throw new Error("Account pending activation");
       }
       console.log("[Users] Login successful for:", user.id);
-      return user;
+      return sanitizeUser(user);
     }),
 
   activate: publicProcedure
@@ -137,7 +158,7 @@ export const usersRouter = createTRPCRouter({
       usersCache[userIndex] = updatedUser;
       
       console.log("[Users] Activated user:", userByEmail.id, userByEmail.email);
-      return updatedUser;
+      return sanitizeUser(updatedUser);
     }),
 
   create: publicProcedure
@@ -192,7 +213,7 @@ export const usersRouter = createTRPCRouter({
         }
 
         console.log("[Users] Refreshed invite code for existing pending user:", existing.id, "invite code:", refreshedInviteCode);
-        return refreshedUser;
+        return sanitizeUser(refreshedUser);
       }
 
       const newUser: User = {
@@ -222,7 +243,7 @@ export const usersRouter = createTRPCRouter({
         await db.create(COLLECTION, newUser);
         usersCache.push(newUser);
         console.log("[Users] Created new user:", newUser.id, "invite code:", inviteCode);
-        return newUser;
+        return sanitizeUser(newUser);
       } catch (error) {
         console.log("[Users] Failed to create user in DB:", error);
         throw new Error("Failed to save user. Please try again.");
@@ -263,7 +284,7 @@ export const usersRouter = createTRPCRouter({
       usersCache[index] = updatedUser;
       
       console.log("[Users] Updated user:", input.id);
-      return updatedUser;
+      return sanitizeUser(updatedUser);
     }),
 
   updateStats: publicProcedure

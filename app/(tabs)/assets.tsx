@@ -389,7 +389,7 @@ export default function AssetsScreen() {
 
                 return (
                   <View key={asset.id} style={styles.assetCard}>
-                    <Image source={{ uri: asset.thumbnail }} style={styles.assetImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+                    <Image source={{ uri: asset.thumbnail }} style={styles.assetImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                     
                     <View style={styles.assetOverlay}>
                       <View style={[styles.typeBadge, { backgroundColor: typeConfig.color }]}>
@@ -675,7 +675,7 @@ export default function AssetsScreen() {
                           source={{ uri: asset.thumbnail }} 
                           contentFit="cover"
                           cachePolicy="memory-disk"
-                          transition={120}
+                          transition={0}
                           style={[
                             styles.previewImage,
                             idx === 0 && styles.previewImageFirst,

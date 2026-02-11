@@ -200,7 +200,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.profileSection}>
-            <Image source={{ uri: normalizeAvatarUri(user.avatar) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+            <Image source={{ uri: normalizeAvatarUri(user.avatar) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
             <Text style={styles.userName} testID="profile-name">{user.name}</Text>
             <Text style={styles.userRole}>{user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')} • {user.region}</Text>
             
@@ -454,13 +454,9 @@ export default function ProfileScreen() {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarSection}>
-              <Image source={{ uri: normalizeAvatarUri(editAvatar || user.avatar) }} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+              <Image source={{ uri: normalizeAvatarUri(editAvatar || user.avatar) }} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
               <Text style={styles.inputLabel}>Choose Avatar</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.avatarPresetRow}
-              >
+              <View style={styles.avatarPresetGrid}>
                 {AVATAR_PRESETS.map((preset) => {
                   const selected = normalizeAvatarUri(editAvatar) === preset.uri;
                   return (
@@ -469,14 +465,14 @@ export default function ProfileScreen() {
                       style={[styles.avatarPresetCard, selected && styles.avatarPresetCardActive]}
                       onPress={() => setEditAvatar(preset.uri)}
                     >
-                      <Image source={{ uri: preset.uri }} style={styles.avatarPresetImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+                      <Image source={{ uri: preset.uri }} style={styles.avatarPresetImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                       <Text style={[styles.avatarPresetLabel, selected && styles.avatarPresetLabelActive]}>
                         {preset.label}
                       </Text>
                     </PressableScale>
                   );
                 })}
-              </ScrollView>
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -1068,11 +1064,12 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 12,
   },
-  avatarPresetRow: {
+  avatarPresetGrid: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 10,
     width: '100%',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   avatarPresetCard: {
     backgroundColor: Colors.dark.surface,
@@ -1081,7 +1078,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    width: 130,
+    width: '48%',
   },
   avatarPresetCardActive: {
     borderColor: Colors.dark.primary,
