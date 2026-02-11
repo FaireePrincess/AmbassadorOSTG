@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, RefreshControl, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, TextInput, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Zap, Clock, Users, ListTodo, Plus, Trash2, Edit3, X, Check, CheckCircle2 } from 'lucide-react-native';
@@ -267,7 +268,7 @@ export default function TasksScreen() {
             >
               {activeCampaigns.map((campaign, index) => (
                 <PressableScale key={`campaign-${index}`} style={styles.campaignCard} testID={`campaign-${index}`}>
-                  <Image source={{ uri: campaign.thumbnail }} style={styles.campaignImage} />
+                  <Image source={{ uri: campaign.thumbnail }} style={styles.campaignImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                   <View style={styles.campaignGradient} />
                   <View style={styles.campaignOverlay}>
                     <View style={styles.campaignPlatforms}>
@@ -324,7 +325,7 @@ export default function TasksScreen() {
                   </View>
                 )}
                 {task.thumbnail && (
-                  <Image source={{ uri: task.thumbnail }} style={styles.taskThumbnail} />
+                  <Image source={{ uri: task.thumbnail }} style={styles.taskThumbnail} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                 )}
                 <View style={styles.taskContent}>
                   <View style={styles.taskHeader}>

@@ -99,7 +99,7 @@ function pruneOversizedInlineMedia(store: Record<string, Record<string, unknown>
       const item = rawItem as Record<string, unknown>;
 
       if (isOversizedInlineMedia(item.avatar)) {
-        item.avatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop";
+        item.avatar = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
         pruned++;
       }
       if (isOversizedInlineMedia(item.thumbnail)) {

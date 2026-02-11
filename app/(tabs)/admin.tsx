@@ -8,6 +8,7 @@ import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { regions } from '@/mocks/data';
 import { UserRole, UserStatus } from '@/types';
+import { DEFAULT_AVATAR_URI } from '@/constants/avatarPresets';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 
@@ -66,7 +67,7 @@ export default function AdminScreen() {
     const result = await createUser({
       name: newUserName.trim(),
       email: newUserEmail.trim().toLowerCase(),
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newUserName.trim())}&background=random&size=150`,
+      avatar: DEFAULT_AVATAR_URI,
       role: newUserRole,
       region: newUserRegion,
       points: 0,

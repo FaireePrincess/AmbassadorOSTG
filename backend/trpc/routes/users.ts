@@ -6,6 +6,8 @@ import type { User, UserRole, UserStatus } from "@/types";
 
 const COLLECTION = "users";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
+const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
 const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 let initialized = false;
 let usersCache: User[] = [];
@@ -15,6 +17,12 @@ function validateAvatar(avatar?: string) {
   if (avatar.startsWith("data:image/") && avatar.length > MAX_IMAGE_DATA_URI_LENGTH) {
     throw new Error("Profile image is too large. Please use a smaller image.");
   }
+}
+
+function sanitizeAvatar(avatar?: string): string {
+  if (!avatar) return DEFAULT_AVATAR;
+  if (!avatar.startsWith(ALLOWED_AVATAR_PREFIX)) return DEFAULT_AVATAR;
+  return avatar;
 }
 
 async function getUsers(forceRefresh = false): Promise<User[]> {
@@ -190,7 +198,7 @@ export const usersRouter = createTRPCRouter({
       const newUser: User = {
         id: `user-${Date.now()}`,
         name: input.name,
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+        avatar: sanitizeAvatar(DEFAULT_AVATAR),
         email: normalizedEmail,
         role: input.role as UserRole,
         region: input.region,
@@ -250,6 +258,7 @@ export const usersRouter = createTRPCRouter({
       }
       
       const updatedUser = { ...users[index], ...input } as User;
+      updatedUser.avatar = sanitizeAvatar(input.avatar ?? users[index].avatar);
       await db.update(COLLECTION, input.id, updatedUser);
       usersCache[index] = updatedUser;
       

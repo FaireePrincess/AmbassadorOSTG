@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Award, Zap, X, Trophy } from 'lucide-react-native';
@@ -8,6 +9,7 @@ import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBackendEnabled } from '@/lib/trpc';
+import { normalizeAvatarUri } from '@/constants/avatarPresets';
 import StatCard from '@/components/StatCard';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
@@ -116,7 +118,7 @@ export default function HomeScreen() {
               <Text style={styles.userName} testID="user-name">{user.name}</Text>
             </View>
             <PressableScale onPress={() => router.push('/profile')} testID="avatar-button">
-              <Image source={{ uri: user.avatar }} style={styles.avatar} />
+              <Image source={{ uri: normalizeAvatarUri(user.avatar) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
             </PressableScale>
           </View>
           
@@ -225,7 +227,7 @@ export default function HomeScreen() {
           {topPosts.map((post) => (
             <View key={post.id} style={styles.postCard}>
               <View style={styles.postHeader}>
-                <Image source={{ uri: post.userAvatar }} style={styles.postAvatar} />
+                <Image source={{ uri: normalizeAvatarUri(post.userAvatar) }} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                 <View style={styles.postUserInfo}>
                   <Text style={styles.postUserName}>{post.userName}</Text>
                   <Text style={styles.postRegion}>{post.userRegion}</Text>
@@ -233,7 +235,7 @@ export default function HomeScreen() {
                 <PlatformBadge platform={post.platform} />
               </View>
               {post.thumbnail && (
-                <Image source={{ uri: post.thumbnail }} style={styles.postImage} />
+                <Image source={{ uri: post.thumbnail }} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
               )}
               <Text style={styles.postContent} numberOfLines={2}>{post.content}</Text>
               <View style={styles.postMetrics}>
@@ -315,7 +317,7 @@ export default function HomeScreen() {
             {allPosts.map((post) => (
               <View key={post.id} style={styles.postCard}>
                 <View style={styles.postHeader}>
-                  <Image source={{ uri: post.userAvatar }} style={styles.postAvatar} />
+                  <Image source={{ uri: normalizeAvatarUri(post.userAvatar) }} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                   <View style={styles.postUserInfo}>
                     <Text style={styles.postUserName}>{post.userName}</Text>
                     <Text style={styles.postRegion}>{post.userRegion}</Text>
@@ -323,7 +325,7 @@ export default function HomeScreen() {
                   <PlatformBadge platform={post.platform} />
                 </View>
                 {post.thumbnail && (
-                  <Image source={{ uri: post.thumbnail }} style={styles.postImage} />
+                  <Image source={{ uri: post.thumbnail }} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                 )}
                 <Text style={styles.postContent} numberOfLines={3}>{post.content}</Text>
                 <View style={styles.postMetrics}>

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, Clock, MapPin, Users, Globe, Check, ExternalLink, Plus, Trash2, Edit3, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -251,7 +252,7 @@ export default function EventsScreen() {
               
               return (
                 <View key={event.id} style={[styles.eventCard, isPast && styles.eventCardPast]}>
-                  <Image source={{ uri: event.thumbnail }} style={styles.eventImage} />
+                  <Image source={{ uri: event.thumbnail }} style={styles.eventImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                   
                   <View style={styles.eventOverlay}>
                     <View style={styles.eventBadges}>
@@ -501,7 +502,7 @@ export default function EventsScreen() {
                       onPress={() => setFormData(prev => ({ ...prev, thumbnail: imageUrl }))}
                       style={[styles.imagePresetCard, isSelected && styles.imagePresetCardActive]}
                     >
-                      <Image source={{ uri: imageUrl }} style={styles.imagePreset} />
+                      <Image source={{ uri: imageUrl }} style={styles.imagePreset} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                     </PressableScale>
                   );
                 })}

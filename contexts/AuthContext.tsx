@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
 import { allUsers as mockUsers } from '@/mocks/data';
 import { trpcClient, isBackendEnabled } from '@/lib/trpc';
+import { DEFAULT_AVATAR_URI, normalizeAvatarUri } from '@/constants/avatarPresets';
 
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
@@ -32,6 +33,14 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function normalizeUserAvatar(user: User): User {
+  return { ...user, avatar: normalizeAvatarUri(user.avatar) };
+}
+
+function normalizeUsers(list: User[]): User[] {
+  return list.map(normalizeUserAvatar);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -64,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUsers = useCallback(async () => {
     try {
       if (BACKEND_ENABLED) {
-        const backendUsers = await trpcClient.users.list.query();
+        const backendUsers = normalizeUsers(await trpcClient.users.list.query());
         setUsers(backendUsers);
         await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(backendUsers));
         await syncCurrentUserRecord(backendUsers);
@@ -73,22 +82,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const storedUsers = await AsyncStorage.getItem(USERS_STORAGE_KEY);
       if (storedUsers) {
-        const parsed = JSON.parse(storedUsers);
+        const parsed = normalizeUsers(JSON.parse(storedUsers));
         setUsers(parsed);
         await syncCurrentUserRecord(parsed);
         return parsed;
       }
       // Initialize with mock users
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockUsers));
-      setUsers(mockUsers);
-      await syncCurrentUserRecord(mockUsers);
-      return mockUsers;
+      const normalizedMockUsers = normalizeUsers(mockUsers);
+      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(normalizedMockUsers));
+      setUsers(normalizedMockUsers);
+      await syncCurrentUserRecord(normalizedMockUsers);
+      return normalizedMockUsers;
     } catch (error) {
       console.log('[Auth] Error loading users:', error);
       if (BACKEND_ENABLED) {
         const storedUsers = await AsyncStorage.getItem(USERS_STORAGE_KEY);
         if (storedUsers) {
-          const parsed = JSON.parse(storedUsers);
+          const parsed = normalizeUsers(JSON.parse(storedUsers));
           setUsers(parsed);
           await syncCurrentUserRecord(parsed);
           return parsed;
@@ -96,16 +106,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // In backend mode, never silently fall back to mock users when backend is temporarily unavailable.
         return users;
       }
-      setUsers(mockUsers);
-      await syncCurrentUserRecord(mockUsers);
-      return mockUsers;
+      const normalizedMockUsers = normalizeUsers(mockUsers);
+      setUsers(normalizedMockUsers);
+      await syncCurrentUserRecord(normalizedMockUsers);
+      return normalizedMockUsers;
     }
   }, [syncCurrentUserRecord, users]);
 
   const saveUsers = useCallback(async (updatedUsers: User[]) => {
     try {
-      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
+      const normalizedUsers = normalizeUsers(updatedUsers);
+      await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(normalizedUsers));
+      setUsers(normalizedUsers);
     } catch (error) {
       console.log('[Auth] Error saving users:', error);
     }
@@ -127,8 +139,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             const user = JSON.parse(rawUser);
             if (user?.status === 'active') {
-              setCurrentUser(user);
-              console.log('[Auth] Restored session for:', user.email);
+              const normalizedUser = normalizeUserAvatar(user);
+              setCurrentUser(normalizedUser);
+              await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
+              console.log('[Auth] Restored session for:', normalizedUser.email);
             } else {
               await AsyncStorage.removeItem(STORAGE_KEY);
             }
@@ -152,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (BACKEND_ENABLED) {
       try {
-        const user = await trpcClient.users.login.mutate({ email, password });
+        const user = normalizeUserAvatar(await trpcClient.users.login.mutate({ email, password }));
         console.log('[Auth] Login successful (backend):', user.name);
         setCurrentUser(user);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -167,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Get latest users from storage
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const user = currentUsers.find((u: User) => u.email.toLowerCase() === email.toLowerCase());
     
@@ -190,15 +204,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     console.log('[Auth] Login successful:', user.name);
-    setCurrentUser(user);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    const normalizedUser = normalizeUserAvatar(user);
+    setCurrentUser(normalizedUser);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
     return { success: true };
   }, [loadUsers]);
 
   const activateAccount = useCallback(async (email: string, inviteCode: string, password: string): Promise<{ success: boolean; error?: string }> => {
     if (BACKEND_ENABLED) {
       try {
-        const activatedUser = await trpcClient.users.activate.mutate({ email, inviteCode, password });
+        const activatedUser = normalizeUserAvatar(await trpcClient.users.activate.mutate({ email, inviteCode, password }));
         setCurrentUser(activatedUser);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activatedUser));
         await loadUsers();
@@ -210,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const userIndex = currentUsers.findIndex((u: User) => u.email.toLowerCase() === email.toLowerCase());
     
@@ -228,12 +243,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Invalid invite code' };
     }
     
-    const activatedUser: User = {
+    const activatedUser: User = normalizeUserAvatar({
       ...user,
       password,
       status: 'active',
       activatedAt: new Date().toISOString().split('T')[0],
-    };
+    });
     
     currentUsers[userIndex] = activatedUser;
     await saveUsers(currentUsers);
@@ -285,7 +300,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const existingUser = currentUsers.find((u: User) => u.email.toLowerCase() === userData.email.toLowerCase());
     if (existingUser) {
@@ -296,7 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const newUser: User = {
       id: `user-${Date.now()}`,
       name: userData.name,
-      avatar: userData.avatar || 'https://images.unsplash.com/photo-1599566150163-29194dcabd36?w=150&h=150&fit=crop',
+      avatar: normalizeAvatarUri(userData.avatar) || DEFAULT_AVATAR_URI,
       email: userData.email,
       role: userData.role,
       region: userData.region,
@@ -339,7 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const userIndex = currentUsers.findIndex((u: User) => u.id === userId);
     if (userIndex === -1) {
@@ -374,7 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const user = currentUsers.find((u: User) => u.id === userId);
     if (!user) {
@@ -403,16 +418,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (BACKEND_ENABLED) {
       try {
+        const normalizedAvatar = normalizeAvatarUri(updates.avatar || currentUser.avatar);
         const updated = await trpcClient.users.update.mutate({
           id: currentUser.id,
           name: updates.name,
-          avatar: updates.avatar,
+          avatar: normalizedAvatar,
           handles: updates.handles,
           fslEmail: updates.fslEmail,
         });
 
-        setCurrentUser(updated);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        const normalizedUpdated = normalizeUserAvatar(updated);
+        setCurrentUser(normalizedUpdated);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUpdated));
         await loadUsers();
         return { success: true };
       } catch (error) {
@@ -422,7 +439,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     const userIndex = currentUsers.findIndex((u: User) => u.id === currentUser.id);
     if (userIndex === -1) {
       return { success: false, error: 'User not found' };
@@ -431,6 +448,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updatedUser: User = {
       ...currentUsers[userIndex],
       ...updates,
+      avatar: normalizeAvatarUri(updates.avatar || currentUsers[userIndex].avatar),
       handles: updates.handles ?? currentUsers[userIndex].handles,
     };
 
@@ -468,7 +486,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const storedUsersRaw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const currentUsers: User[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers;
+    const currentUsers: User[] = normalizeUsers(storedUsersRaw ? JSON.parse(storedUsersRaw) : mockUsers);
     
     const userIndex = currentUsers.findIndex((u: User) => u.id === userId);
     if (userIndex === -1) {
@@ -503,7 +521,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem(STORAGE_KEY);
     await AsyncStorage.removeItem(USERS_STORAGE_KEY);
     setCurrentUser(null);
-    setUsers(mockUsers);
+    setUsers(normalizeUsers(mockUsers));
   }, []);
 
   const isAuthenticated = currentUser !== null;

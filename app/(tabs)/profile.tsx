@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
+import { AVATAR_PRESETS, normalizeAvatarUri } from '@/constants/avatarPresets';
 
 import { useAuth } from '@/contexts/AuthContext';
 import StatCard from '@/components/StatCard';
@@ -15,49 +17,6 @@ import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 
 type TabType = 'submissions' | 'stats';
-
-const AVATAR_PRESETS = [
-  {
-    id: 'bear',
-    label: 'Bear',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede',
-  },
-  {
-    id: 'cat',
-    label: 'Cat',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Cat&backgroundColor=fde68a',
-  },
-  {
-    id: 'fox',
-    label: 'Fox',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Fox&backgroundColor=fca5a5',
-  },
-  {
-    id: 'panda',
-    label: 'Panda',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Panda&backgroundColor=93c5fd',
-  },
-  {
-    id: 'robot',
-    label: 'Robot',
-    uri: 'https://api.dicebear.com/9.x/bottts/png?seed=RobotX&backgroundColor=86efac',
-  },
-  {
-    id: 'alien',
-    label: 'Alien',
-    uri: 'https://api.dicebear.com/9.x/bottts/png?seed=AlienY&backgroundColor=f9a8d4',
-  },
-  {
-    id: 'wizard',
-    label: 'Wizard',
-    uri: 'https://api.dicebear.com/9.x/adventurer/png?seed=WizardZ&backgroundColor=d9f99d',
-  },
-  {
-    id: 'ninja',
-    label: 'Ninja',
-    uri: 'https://api.dicebear.com/9.x/adventurer/png?seed=NinjaQ&backgroundColor=fdba74',
-  },
-];
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -72,7 +31,7 @@ export default function ProfileScreen() {
   const [editTiktok, setEditTiktok] = useState(currentUser?.handles?.tiktok || '');
   const [editDiscord, setEditDiscord] = useState(currentUser?.handles?.discord || '');
   const [editFslEmail, setEditFslEmail] = useState(currentUser?.fslEmail || '');
-  const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
+  const [editAvatar, setEditAvatar] = useState(normalizeAvatarUri(currentUser?.avatar));
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -96,7 +55,7 @@ export default function ProfileScreen() {
     setEditTiktok(currentUser.handles?.tiktok || '');
     setEditDiscord(currentUser.handles?.discord || '');
     setEditFslEmail(currentUser.fslEmail || '');
-    setEditAvatar(currentUser.avatar || '');
+    setEditAvatar(normalizeAvatarUri(currentUser.avatar));
     setIsEditModalVisible(true);
   }, [currentUser]);
 
@@ -142,7 +101,7 @@ export default function ProfileScreen() {
 
     const result = await updateProfile({
       name: editName.trim(),
-      avatar: editAvatar.trim() || currentUser.avatar,
+      avatar: normalizeAvatarUri(editAvatar.trim() || currentUser.avatar),
       fslEmail: cleanHandle(editFslEmail),
       handles: {
         twitter: cleanHandle(editTwitter),
@@ -241,7 +200,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.profileSection}>
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            <Image source={{ uri: normalizeAvatarUri(user.avatar) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
             <Text style={styles.userName} testID="profile-name">{user.name}</Text>
             <Text style={styles.userRole}>{user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')} • {user.region}</Text>
             
@@ -495,7 +454,7 @@ export default function ProfileScreen() {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarSection}>
-              <Image source={{ uri: editAvatar || user.avatar }} style={styles.editAvatar} />
+              <Image source={{ uri: normalizeAvatarUri(editAvatar || user.avatar) }} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={120} />
               <Text style={styles.inputLabel}>Choose Avatar</Text>
               <ScrollView
                 horizontal
@@ -503,14 +462,14 @@ export default function ProfileScreen() {
                 contentContainerStyle={styles.avatarPresetRow}
               >
                 {AVATAR_PRESETS.map((preset) => {
-                  const selected = editAvatar === preset.uri;
+                  const selected = normalizeAvatarUri(editAvatar) === preset.uri;
                   return (
                     <PressableScale
                       key={preset.id}
                       style={[styles.avatarPresetCard, selected && styles.avatarPresetCardActive]}
                       onPress={() => setEditAvatar(preset.uri)}
                     >
-                      <Image source={{ uri: preset.uri }} style={styles.avatarPresetImage} />
+                      <Image source={{ uri: preset.uri }} style={styles.avatarPresetImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                       <Text style={[styles.avatarPresetLabel, selected && styles.avatarPresetLabelActive]}>
                         {preset.label}
                       </Text>

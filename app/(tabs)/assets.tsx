@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Alert, TextInput, RefreshControl, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Palette, Megaphone, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -388,7 +389,7 @@ export default function AssetsScreen() {
 
                 return (
                   <View key={asset.id} style={styles.assetCard}>
-                    <Image source={{ uri: asset.thumbnail }} style={styles.assetImage} />
+                    <Image source={{ uri: asset.thumbnail }} style={styles.assetImage} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                     
                     <View style={styles.assetOverlay}>
                       <View style={[styles.typeBadge, { backgroundColor: typeConfig.color }]}>
@@ -672,6 +673,9 @@ export default function AssetsScreen() {
                         <Image 
                           key={asset.id} 
                           source={{ uri: asset.thumbnail }} 
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          transition={120}
                           style={[
                             styles.previewImage,
                             idx === 0 && styles.previewImageFirst,
