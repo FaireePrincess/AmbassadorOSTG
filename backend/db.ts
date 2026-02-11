@@ -69,6 +69,8 @@ interface DbRecord {
 const memoryStore: Record<string, Record<string, unknown>> = {};
 let fileStoreLoaded = false;
 let fsAvailable = true;
+let fileStoreLoadPromise: Promise<void> | null = null;
+let fileStoreWriteQueue: Promise<void> = Promise.resolve();
 
 const DATA_DIR = getEnvVar('DATA_DIR') || './data';
 const DATA_FILE = `${DATA_DIR}/db.json`;
@@ -131,76 +133,98 @@ async function getFs() {
 
 async function ensureFileStoreLoaded(): Promise<void> {
   if (fileStoreLoaded) return;
-  fileStoreLoaded = true;
 
-  const fs = await getFs();
-  if (!fs) return;
+  if (!fileStoreLoadPromise) {
+    fileStoreLoadPromise = (async () => {
+      const fs = await getFs();
+      if (!fs) return;
+
+      try {
+        const raw = await fs.readFile(DATA_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          Object.assign(memoryStore, parsed);
+          const prunedCount = pruneOversizedInlineMedia(memoryStore);
+          if (prunedCount > 0) {
+            prunedInlineMediaCount = prunedCount;
+            console.log(`[DB] Pruned ${prunedCount} oversized inline media fields`);
+            await persistFileStore();
+          } else {
+            prunedInlineMediaCount = 0;
+          }
+        }
+      } catch (error: unknown) {
+        const err = error as { code?: string; message?: string };
+        const missingFile = err?.code === 'ENOENT';
+        if (missingFile) {
+          try {
+            await fs.mkdir(DATA_DIR, { recursive: true });
+          } catch {
+          }
+          return;
+        }
+
+        // If primary file is corrupted, try backup before declaring failure.
+        try {
+          const backupRaw = await fs.readFile(DATA_FILE_BAK, 'utf8');
+          const backupParsed = JSON.parse(backupRaw);
+          if (backupParsed && typeof backupParsed === 'object') {
+            Object.assign(memoryStore, backupParsed);
+            console.log('[DB] Recovered data from backup file');
+            return;
+          }
+        } catch {
+        }
+
+        fileStoreLoadError = err?.message || 'Failed to load file store';
+        console.log('[DB] ERROR: Failed to load file store, refusing silent reset:', fileStoreLoadError);
+      }
+    })();
+  }
 
   try {
-    const raw = await fs.readFile(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') {
-      Object.assign(memoryStore, parsed);
-      const prunedCount = pruneOversizedInlineMedia(memoryStore);
-      if (prunedCount > 0) {
-        prunedInlineMediaCount = prunedCount;
-        console.log(`[DB] Pruned ${prunedCount} oversized inline media fields`);
-        await persistFileStore();
-      } else {
-        prunedInlineMediaCount = 0;
-      }
+    await fileStoreLoadPromise;
+  } finally {
+    if (fileStoreLoadPromise) {
+      fileStoreLoaded = true;
+      fileStoreLoadPromise = null;
     }
-  } catch (error: unknown) {
-    const err = error as { code?: string; message?: string };
-    const missingFile = err?.code === 'ENOENT';
-    if (missingFile) {
+  }
+}
+
+async function enqueuePersist(work: () => Promise<void>): Promise<void> {
+  fileStoreWriteQueue = fileStoreWriteQueue.then(work);
+  return fileStoreWriteQueue;
+}
+
+async function persistFileStore(): Promise<void> {
+  return enqueuePersist(async () => {
+    const fs = await getFs();
+    if (!fs) return;
+
+    try {
       try {
         await fs.mkdir(DATA_DIR, { recursive: true });
       } catch {
       }
-      return;
-    }
+      const payload = JSON.stringify(memoryStore, null, 2);
+      await fs.writeFile(DATA_FILE_TMP, payload, 'utf8');
 
-    // If primary file is corrupted, try backup before declaring failure.
-    try {
-      const backupRaw = await fs.readFile(DATA_FILE_BAK, 'utf8');
-      const backupParsed = JSON.parse(backupRaw);
-      if (backupParsed && typeof backupParsed === 'object') {
-        Object.assign(memoryStore, backupParsed);
-        console.log('[DB] Recovered data from backup file');
-        return;
+      try {
+        const current = await fs.readFile(DATA_FILE, 'utf8');
+        await fs.writeFile(DATA_FILE_BAK, current, 'utf8');
+      } catch {
       }
-    } catch {
+
+      await fs.rename(DATA_FILE_TMP, DATA_FILE);
+      fileStorePersistError = null;
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      fileStorePersistError = err?.message || 'Failed to persist file store';
+      console.log('[DB] ERROR: Failed to persist file store:', fileStorePersistError);
+      throw new Error(fileStorePersistError);
     }
-
-    fileStoreLoadError = err?.message || 'Failed to load file store';
-    console.log('[DB] ERROR: Failed to load file store, refusing silent reset:', fileStoreLoadError);
-  }
-}
-
-async function persistFileStore(): Promise<void> {
-  const fs = await getFs();
-  if (!fs) return;
-
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const payload = JSON.stringify(memoryStore, null, 2);
-    await fs.writeFile(DATA_FILE_TMP, payload, 'utf8');
-
-    try {
-      const current = await fs.readFile(DATA_FILE, 'utf8');
-      await fs.writeFile(DATA_FILE_BAK, current, 'utf8');
-    } catch {
-    }
-
-    await fs.rename(DATA_FILE_TMP, DATA_FILE);
-    fileStorePersistError = null;
-  } catch (error: unknown) {
-    const err = error as { message?: string };
-    fileStorePersistError = err?.message || 'Failed to persist file store';
-    console.log('[DB] ERROR: Failed to persist file store:', fileStorePersistError);
-    throw new Error(fileStorePersistError);
-  }
+  });
 }
 
 async function getMemoryCollection(collection: string): Promise<unknown[]> {
