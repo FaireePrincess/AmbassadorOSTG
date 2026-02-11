@@ -20,6 +20,17 @@ const EVENT_IMAGE_PRESETS = [
   'https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?w=800&h=500&fit=crop',
 ];
 
+function eventSortTimestamp(event: Event): number {
+  const base = event.date?.trim();
+  if (!base) return Number.POSITIVE_INFINITY;
+  const time = event.time?.trim() || '23:59';
+  const iso = `${base}T${time}`;
+  const parsed = Date.parse(iso);
+  if (!Number.isNaN(parsed)) return parsed;
+  const dateOnly = Date.parse(base);
+  return Number.isNaN(dateOnly) ? Number.POSITIVE_INFINITY : dateOnly;
+}
+
 export default function EventsScreen() {
   const { isAdmin } = useAuth();
   const { events, rsvpStates, updateRsvp, isRefreshing, refreshData, addEvent, updateEvent, deleteEvent } = useApp();
@@ -44,9 +55,10 @@ export default function EventsScreen() {
   
 
   const filteredEvents = useMemo(() => {
-    return activeFilter === 'all' 
-      ? events 
+    const base = activeFilter === 'all'
+      ? [...events]
       : events.filter(e => e.type === activeFilter);
+    return base.sort((a, b) => eventSortTimestamp(a) - eventSortTimestamp(b));
   }, [events, activeFilter]);
 
   const handleRefresh = useCallback(() => {

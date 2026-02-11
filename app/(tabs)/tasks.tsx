@@ -21,6 +21,13 @@ type ImageInputMode = 'upload' | 'url';
 const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube'];
 const INLINE_IMAGE_LIMIT_BYTES = 225_000;
 
+function taskDeadlineTimestamp(task: Task): number {
+  const deadline = task.deadline?.trim();
+  if (!deadline) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(deadline);
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
 function estimateDataUriBytes(value: string): number | null {
   if (!value.startsWith('data:')) return null;
   const base64 = value.split(',')[1] || '';
@@ -63,9 +70,10 @@ export default function TasksScreen() {
   
 
   const filteredTasks = useMemo(() => {
-    return activeFilter === 'all' 
-      ? tasks 
+    const base = activeFilter === 'all'
+      ? [...tasks]
       : tasks.filter(t => t.platforms.includes(activeFilter as PlatformType));
+    return base.sort((a, b) => taskDeadlineTimestamp(a) - taskDeadlineTimestamp(b));
   }, [tasks, activeFilter]);
 
   const activeCampaigns = useMemo(() => {
