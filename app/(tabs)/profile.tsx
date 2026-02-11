@@ -13,9 +13,21 @@ import StatusBadge from '@/components/StatusBadge';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
-import ImagePicker from '@/components/ImagePicker';
 
 type TabType = 'submissions' | 'stats';
+
+const AVATAR_PRESETS = [
+  {
+    id: 'monkey',
+    label: 'Monkey',
+    uri: 'https://api.dicebear.com/9.x/shapes/png?seed=MonkeyBadge&backgroundColor=b6e3f4',
+  },
+  {
+    id: 'unicorn',
+    label: 'Unicorn',
+    uri: 'https://api.dicebear.com/9.x/shapes/png?seed=UnicornBadge&backgroundColor=ffd5dc',
+  },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -453,13 +465,25 @@ export default function ProfileScreen() {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarSection}>
-              <ImagePicker
-                value={editAvatar}
-                onChange={setEditAvatar}
-                placeholder="Tap to upload profile photo"
-                aspectRatio={[1, 1]}
-                height={180}
-              />
+              <Image source={{ uri: editAvatar || user.avatar }} style={styles.editAvatar} />
+              <Text style={styles.inputLabel}>Choose Avatar</Text>
+              <View style={styles.avatarPresetRow}>
+                {AVATAR_PRESETS.map((preset) => {
+                  const selected = editAvatar === preset.uri;
+                  return (
+                    <PressableScale
+                      key={preset.id}
+                      style={[styles.avatarPresetCard, selected && styles.avatarPresetCardActive]}
+                      onPress={() => setEditAvatar(preset.uri)}
+                    >
+                      <Image source={{ uri: preset.uri }} style={styles.avatarPresetImage} />
+                      <Text style={[styles.avatarPresetLabel, selected && styles.avatarPresetLabelActive]}>
+                        {preset.label}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -1051,16 +1075,38 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 12,
   },
-  changeAvatarBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.surface,
+  avatarPresetRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
   },
-  changeAvatarText: {
-    fontSize: 14,
-    color: Colors.dark.primary,
+  avatarPresetCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    padding: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    width: 130,
+  },
+  avatarPresetCardActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '15',
+  },
+  avatarPresetImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginBottom: 8,
+  },
+  avatarPresetLabel: {
+    fontSize: 13,
     fontWeight: '600' as const,
+    color: Colors.dark.textSecondary,
+  },
+  avatarPresetLabelActive: {
+    color: Colors.dark.primary,
   },
   sectionLabel: {
     fontSize: 16,
