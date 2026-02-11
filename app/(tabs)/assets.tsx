@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions } from 'react-native';
-import { Image } from 'expo-image';
+import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Palette, Megaphone, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';

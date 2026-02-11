@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, TextInput, Alert } from 'react-native';
-import { Image } from 'expo-image';
+import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Zap, Clock, Users, ListTodo, Plus, Trash2, Edit3, X, Check, CheckCircle2 } from 'lucide-react-native';

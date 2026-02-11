@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking } from 'react-native';
-import { Image } from 'expo-image';
+import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
@@ -124,6 +124,14 @@ export default function ProfileScreen() {
     Alert.alert('Success', 'Profile updated successfully!');
   }, [currentUser, editAvatar, editDiscord, editFslEmail, editInstagram, editName, editTiktok, editTwitter, updateProfile]);
 
+  const selectRelativeAvatar = useCallback((direction: -1 | 1) => {
+    const current = normalizeAvatarUri(editAvatar);
+    const currentIndex = AVATAR_PRESETS.findIndex((preset) => preset.uri === current);
+    const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = (safeIndex + direction + AVATAR_PRESETS.length) % AVATAR_PRESETS.length;
+    setEditAvatar(AVATAR_PRESETS[nextIndex].uri);
+  }, [editAvatar]);
+
   const openPasswordModal = useCallback(() => {
     setCurrentPassword('');
     setNewPassword('');
@@ -175,6 +183,7 @@ export default function ProfileScreen() {
   }
 
   const user = currentUser;
+  const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.uri === normalizeAvatarUri(editAvatar || user.avatar)) || AVATAR_PRESETS[0];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -456,6 +465,17 @@ export default function ProfileScreen() {
             <View style={styles.avatarSection}>
               <Image source={normalizeAvatarUri(editAvatar || user.avatar)} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
               <Text style={styles.inputLabel}>Choose Avatar</Text>
+              <View style={styles.avatarPagerRow}>
+                <PressableScale style={styles.avatarPagerBtn} onPress={() => selectRelativeAvatar(-1)} hapticType="selection">
+                  <ChevronLeft size={16} color={Colors.dark.primary} />
+                  <Text style={styles.avatarPagerBtnText}>Prev</Text>
+                </PressableScale>
+                <Text style={styles.avatarPagerLabel}>{selectedAvatar.label}</Text>
+                <PressableScale style={styles.avatarPagerBtn} onPress={() => selectRelativeAvatar(1)} hapticType="selection">
+                  <Text style={styles.avatarPagerBtnText}>Next</Text>
+                  <ChevronRight size={16} color={Colors.dark.primary} />
+                </PressableScale>
+              </View>
               <View style={styles.avatarPresetGrid}>
                 {AVATAR_PRESETS.map((preset) => {
                   const selected = normalizeAvatarUri(editAvatar) === preset.uri;
@@ -1070,6 +1090,34 @@ const styles = StyleSheet.create({
     gap: 8,
     width: '100%',
     justifyContent: 'space-between',
+  },
+  avatarPagerRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  avatarPagerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  avatarPagerBtnText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.dark.primary,
+  },
+  avatarPagerLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.dark.text,
   },
   avatarPresetCard: {
     backgroundColor: Colors.dark.surface,
