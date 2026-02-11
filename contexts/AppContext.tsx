@@ -69,32 +69,32 @@ export const [AppProvider, useApp] = createContextHook(() => {
         ] = await Promise.all([
           trpcClient.tasks.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch tasks from backend:', e);
-            return [] as Task[];
+            return null;
           }),
           trpcClient.events.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch events from backend:', e);
-            return [] as Event[];
+            return null;
           }),
           trpcClient.assets.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch assets from backend:', e);
-            return [] as Asset[];
+            return null;
           }),
           trpcClient.submissions.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch submissions from backend:', e);
-            return [] as Submission[];
+            return null;
           }),
           trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch((e) => {
             console.log('[AppContext] Failed to fetch ambassador feed from backend:', e);
-            return [] as AmbassadorPost[];
+            return null;
           }),
           AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
         ]);
 
-        setTasks(backendTasks);
-        setEvents(backendEvents);
-        setAssets(backendAssets);
-        setSubmissions(backendSubmissions);
-        setAmbassadorFeed(backendFeed);
+        if (Array.isArray(backendTasks)) setTasks(backendTasks);
+        if (Array.isArray(backendEvents)) setEvents(backendEvents);
+        if (Array.isArray(backendAssets)) setAssets(backendAssets);
+        if (Array.isArray(backendSubmissions)) setSubmissions(backendSubmissions);
+        if (Array.isArray(backendFeed)) setAmbassadorFeed(backendFeed);
 
         if (storedRsvps) {
           try {
@@ -105,7 +105,16 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }
         }
 
-        console.log('[AppContext] Data loaded from backend - Tasks:', backendTasks.length, 'Events:', backendEvents.length, 'Assets:', backendAssets.length, 'Submissions:', backendSubmissions.length);
+        console.log(
+          '[AppContext] Data loaded from backend - Tasks:',
+          Array.isArray(backendTasks) ? backendTasks.length : 'unchanged',
+          'Events:',
+          Array.isArray(backendEvents) ? backendEvents.length : 'unchanged',
+          'Assets:',
+          Array.isArray(backendAssets) ? backendAssets.length : 'unchanged',
+          'Submissions:',
+          Array.isArray(backendSubmissions) ? backendSubmissions.length : 'unchanged'
+        );
         return;
       }
 
@@ -548,8 +557,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       console.log('[AppContext] Event added locally:', newEvent.id);
       return { success: true, event: newEvent };
     } catch (error) {
-      console.log('[AppContext] Error adding event:', error);
-      return { success: false, error: 'Failed to save event' };
+      const errMsg = error instanceof Error ? error.message : 'Failed to save event';
+      console.log('[AppContext] Error adding event:', errMsg, error);
+      return { success: false, error: errMsg };
     }
   }, []);
 
@@ -575,8 +585,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
       console.log('[AppContext] Event updated locally:', eventId);
       return { success: true };
     } catch (error) {
-      console.log('[AppContext] Error updating event:', error);
-      return { success: false, error: 'Failed to update event' };
+      const errMsg = error instanceof Error ? error.message : 'Failed to update event';
+      console.log('[AppContext] Error updating event:', errMsg, error);
+      return { success: false, error: errMsg };
     }
   }, []);
 
