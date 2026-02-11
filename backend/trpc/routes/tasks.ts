@@ -5,6 +5,14 @@ import { db } from "@/backend/db";
 import type { Task, TaskStatus, Platform } from "@/types";
 
 const COLLECTION = "tasks";
+const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+
+function validateTaskThumbnail(thumbnail?: string) {
+  if (!thumbnail) return;
+  if (thumbnail.startsWith("data:image/") && thumbnail.length > MAX_IMAGE_DATA_URI_LENGTH) {
+    throw new Error("Task image is too large. Please use a smaller image.");
+  }
+}
 
 async function ensureInitialized(): Promise<void> {
   const dbTasks = await db.getCollection<Task>(COLLECTION);
@@ -66,6 +74,7 @@ export const tasksRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateTaskThumbnail(input.thumbnail);
       const campaign = campaigns.find((c) => c.id === input.campaignId);
       const newTask: Task = {
         id: `task-${Date.now()}`,
@@ -111,6 +120,7 @@ export const tasksRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateTaskThumbnail(input.thumbnail);
       const tasks = await getTasks();
       const existing = tasks.find((t) => t.id === input.id);
       if (!existing) {

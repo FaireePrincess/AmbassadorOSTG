@@ -5,8 +5,16 @@ import { db } from "@/backend/db";
 import type { User, UserRole, UserStatus } from "@/types";
 
 const COLLECTION = "users";
+const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
 let initialized = false;
 let usersCache: User[] = [];
+
+function validateAvatar(avatar?: string) {
+  if (!avatar) return;
+  if (avatar.startsWith("data:image/") && avatar.length > MAX_IMAGE_DATA_URI_LENGTH) {
+    throw new Error("Profile image is too large. Please use a smaller image.");
+  }
+}
 
 async function getUsers(forceRefresh = false): Promise<User[]> {
   if (!initialized || forceRefresh) {
@@ -190,6 +198,7 @@ export const usersRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateAvatar(input.avatar);
       const users = await getUsers();
       const index = users.findIndex((u) => u.id === input.id);
       if (index === -1) {

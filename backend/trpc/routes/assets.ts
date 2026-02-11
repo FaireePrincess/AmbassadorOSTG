@@ -5,6 +5,14 @@ import { db } from "@/backend/db";
 import type { Asset, AssetType, Platform } from "@/types";
 
 const COLLECTION = "assets";
+const MAX_INLINE_DATA_URI_LENGTH = 300_000;
+
+function validateInlineMedia(label: string, value?: string) {
+  if (!value) return;
+  if (value.startsWith("data:") && value.length > MAX_INLINE_DATA_URI_LENGTH) {
+    throw new Error(`${label} is too large. Please use a smaller file.`);
+  }
+}
 
 async function ensureInitialized(): Promise<void> {
   const dbAssets = await db.getCollection<Asset>(COLLECTION);
@@ -62,6 +70,8 @@ export const assetsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateInlineMedia("Asset URL", input.url);
+      validateInlineMedia("Asset thumbnail", input.thumbnail);
       const newAsset: Asset = {
         id: `asset-${Date.now()}`,
         name: input.name,
@@ -99,6 +109,8 @@ export const assetsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateInlineMedia("Asset URL", input.url);
+      validateInlineMedia("Asset thumbnail", input.thumbnail);
       const assets = await getAssets();
       const existing = assets.find((a) => a.id === input.id);
       if (!existing) {

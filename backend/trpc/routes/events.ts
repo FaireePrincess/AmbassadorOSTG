@@ -5,7 +5,7 @@ import { db } from "@/backend/db";
 import type { Event, EventType } from "@/types";
 
 const COLLECTION = "events";
-const MAX_DATA_URI_LENGTH = 450_000;
+const MAX_DATA_URI_LENGTH = 300_000;
 
 function validateEventThumbnail(thumbnail: string) {
   if (!thumbnail.startsWith("data:image/")) return;

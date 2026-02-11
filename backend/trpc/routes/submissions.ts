@@ -6,6 +6,14 @@ import type { Submission, SubmissionStatus, Platform, AmbassadorPost, User } fro
 
 const SUBMISSIONS_COLLECTION = "submissions";
 const POSTS_COLLECTION = "ambassador_posts";
+const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+
+function validateScreenshot(screenshotUrl?: string) {
+  if (!screenshotUrl) return;
+  if (screenshotUrl.startsWith("data:image/") && screenshotUrl.length > MAX_IMAGE_DATA_URI_LENGTH) {
+    throw new Error("Submission screenshot is too large. Please use a smaller image.");
+  }
+}
 
 async function ensureSubmissionsInitialized(): Promise<void> {
   const dbSubmissions = await db.getCollection<Submission>(SUBMISSIONS_COLLECTION);
@@ -130,6 +138,7 @@ export const submissionsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      validateScreenshot(input.screenshotUrl);
       const taskInfo = await getTaskInfo(input.taskId);
       const newSubmission: Submission = {
         id: `sub-${Date.now()}`,

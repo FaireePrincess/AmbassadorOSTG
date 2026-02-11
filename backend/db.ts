@@ -76,6 +76,47 @@ const DATA_FILE_TMP = `${DATA_DIR}/db.json.tmp`;
 const DATA_FILE_BAK = `${DATA_DIR}/db.json.bak`;
 let fileStoreLoadError: string | null = null;
 let fileStorePersistError: string | null = null;
+const INLINE_MEDIA_MAX_LENGTH = 300_000;
+let prunedInlineMediaCount = 0;
+
+function isOversizedInlineMedia(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("data:") &&
+    value.length > INLINE_MEDIA_MAX_LENGTH
+  );
+}
+
+function pruneOversizedInlineMedia(store: Record<string, Record<string, unknown>>): number {
+  let pruned = 0;
+  const collections = Object.values(store);
+
+  for (const col of collections) {
+    for (const rawItem of Object.values(col)) {
+      if (!rawItem || typeof rawItem !== "object") continue;
+      const item = rawItem as Record<string, unknown>;
+
+      if (isOversizedInlineMedia(item.avatar)) {
+        item.avatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop";
+        pruned++;
+      }
+      if (isOversizedInlineMedia(item.thumbnail)) {
+        item.thumbnail = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop";
+        pruned++;
+      }
+      if (isOversizedInlineMedia(item.url)) {
+        item.url = "";
+        pruned++;
+      }
+      if (isOversizedInlineMedia(item.screenshotUrl)) {
+        delete item.screenshotUrl;
+        pruned++;
+      }
+    }
+  }
+
+  return pruned;
+}
 
 async function getFs() {
   if (!fsAvailable) return null;
@@ -100,6 +141,14 @@ async function ensureFileStoreLoaded(): Promise<void> {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
       Object.assign(memoryStore, parsed);
+      const prunedCount = pruneOversizedInlineMedia(memoryStore);
+      if (prunedCount > 0) {
+        prunedInlineMediaCount = prunedCount;
+        console.log(`[DB] Pruned ${prunedCount} oversized inline media fields`);
+        await persistFileStore();
+      } else {
+        prunedInlineMediaCount = 0;
+      }
     }
   } catch (error: unknown) {
     const err = error as { code?: string; message?: string };
@@ -400,5 +449,7 @@ export async function getStorageDiagnostics() {
     fileStoreLoaded,
     fileStoreLoadError,
     fileStorePersistError,
+    inlineMediaMaxLength: INLINE_MEDIA_MAX_LENGTH,
+    prunedInlineMediaCount,
   };
 }
