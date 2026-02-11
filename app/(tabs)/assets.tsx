@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Palette, Megaphone, Pencil } from 'lucide-react-native';
+import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -10,29 +10,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
-import { AssetType, Asset, Platform as PlatformType } from '@/types';
+import { AssetType, Asset, AssetFolder, Platform as PlatformType } from '@/types';
 import ImagePicker from '@/components/ImagePicker';
+import { DEFAULT_ASSET_FOLDER_ID } from '@/constants/assetFolders';
 
-type FolderKey = 'all' | 'images' | 'videos' | 'documents' | 'templates' | 'brand' | 'campaigns';
-
-interface FolderConfig {
-  key: FolderKey;
-  label: string;
-  icon: typeof FileImage;
-  color: string;
-  gradient: string;
-  filterType?: AssetType;
-  description: string;
-}
-
-const DEFAULT_FOLDERS: FolderConfig[] = [
-  { key: 'images', label: 'Images', icon: FileImage, color: '#3B82F6', gradient: '#1E40AF', filterType: 'image', description: 'Photos & graphics' },
-  { key: 'videos', label: 'Videos', icon: FileVideo, color: '#EF4444', gradient: '#991B1B', filterType: 'video', description: 'Video content' },
-  { key: 'documents', label: 'Documents', icon: FileText, color: '#10B981', gradient: '#047857', filterType: 'document', description: 'PDFs & guides' },
-  { key: 'templates', label: 'Templates', icon: Layout, color: '#8B5CF6', gradient: '#5B21B6', filterType: 'template', description: 'Ready-to-use templates' },
-  { key: 'brand', label: 'Brand Assets', icon: Palette, color: '#F59E0B', gradient: '#B45309', description: 'Logos & brand kit' },
-  { key: 'campaigns', label: 'Campaigns', icon: Megaphone, color: '#EC4899', gradient: '#9D174D', description: 'Campaign materials' },
-];
+type FolderKey = string;
 
 const assetTypeConfig: Record<AssetType, { icon: typeof FileImage; label: string; color: string }> = {
   image: { icon: FileImage, label: 'Image', color: Colors.dark.primary },
@@ -66,7 +48,18 @@ function formatBytes(bytes: number): string {
 
 export default function AssetsScreen() {
   const { isAdmin } = useAuth();
-  const { assets, isRefreshing, refreshData, addAsset, updateAsset, deleteAsset } = useApp();
+  const {
+    assets,
+    assetFolders,
+    isRefreshing,
+    refreshData,
+    addAsset,
+    updateAsset,
+    deleteAsset,
+    addAssetFolder,
+    updateAssetFolder,
+    deleteAssetFolder,
+  } = useApp();
   const [activeFolder, setActiveFolder] = useState<FolderKey | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -74,22 +67,15 @@ export default function AssetsScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileInputMode, setFileInputMode] = useState<FileInputMode>('upload');
   const [uploadFileSizeBytes, setUploadFileSizeBytes] = useState<number | null>(null);
-
-  const [customFolderLabels, setCustomFolderLabels] = useState<Record<FolderKey, string>>({} as Record<FolderKey, string>);
-  const [editingFolder, setEditingFolder] = useState<FolderKey | null>(null);
-  const [editingFolderName, setEditingFolderName] = useState('');
-
-  const FOLDERS = useMemo(() => 
-    DEFAULT_FOLDERS.map(folder => ({
-      ...folder,
-      label: customFolderLabels[folder.key] || folder.label,
-    })),
-    [customFolderLabels]
-  );
+  const [isFolderModalVisible, setIsFolderModalVisible] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<AssetFolder | null>(null);
+  const [folderNameInput, setFolderNameInput] = useState('');
+  const [folderColorInput, setFolderColorInput] = useState('#6366F1');
 
   const [formData, setFormData] = useState({
     name: '',
     type: 'image' as AssetType,
+    folderId: DEFAULT_ASSET_FOLDER_ID,
     url: '',
     thumbnail: '',
     campaignTitle: '',
@@ -99,41 +85,16 @@ export default function AssetsScreen() {
   });
 
   const getAssetsForFolder = useCallback((folderKey: FolderKey) => {
-    const folder = FOLDERS.find(f => f.key === folderKey);
-    if (!folder) return assets;
-    
-    if (folder.filterType) {
-      return assets.filter(a => a.type === folder.filterType);
-    }
-    
-    if (folderKey === 'brand') {
-      return assets.filter(a => a.name.toLowerCase().includes('logo') || a.name.toLowerCase().includes('brand'));
-    }
-    
-    if (folderKey === 'campaigns') {
-      return assets.filter(a => a.campaignTitle && a.campaignTitle.length > 0);
-    }
-    
-    return assets;
-  }, [assets, FOLDERS]);
+    return assets.filter(a => (a.folderId || DEFAULT_ASSET_FOLDER_ID) === folderKey);
+  }, [assets]);
 
   const folderCounts = useMemo(() => {
-    const counts: Record<FolderKey, number> = {
-      all: assets.length,
-      images: 0,
-      videos: 0,
-      documents: 0,
-      templates: 0,
-      brand: 0,
-      campaigns: 0,
-    };
-    
-    FOLDERS.forEach(folder => {
-      counts[folder.key] = getAssetsForFolder(folder.key).length;
+    const counts: Record<FolderKey, number> = {};
+    assetFolders.forEach(folder => {
+      counts[folder.id] = getAssetsForFolder(folder.id).length;
     });
-    
     return counts;
-  }, [assets, getAssetsForFolder, FOLDERS]);
+  }, [assetFolders, getAssetsForFolder]);
 
   const filteredAssets = useMemo(() => {
     if (!activeFolder) return [];
@@ -172,6 +133,7 @@ export default function AssetsScreen() {
     setFormData({
       name: '',
       type: 'image',
+      folderId: activeFolder || assetFolders[0]?.id || DEFAULT_ASSET_FOLDER_ID,
       url: '',
       thumbnail: '',
       campaignTitle: '',
@@ -182,7 +144,7 @@ export default function AssetsScreen() {
     setFileInputMode('upload');
     setUploadFileSizeBytes(null);
     setEditingAsset(null);
-  }, []);
+  }, [activeFolder, assetFolders]);
 
   const openAddModal = useCallback(() => {
     resetForm();
@@ -198,6 +160,7 @@ export default function AssetsScreen() {
     setFormData({
       name: asset.name,
       type: asset.type,
+      folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID,
       url: asset.url,
       thumbnail: asset.thumbnail,
       campaignTitle: asset.campaignTitle || '',
@@ -229,6 +192,7 @@ export default function AssetsScreen() {
     const assetData = {
       name: formData.name.trim(),
       type: formData.type,
+      folderId: formData.folderId || DEFAULT_ASSET_FOLDER_ID,
       url: formData.url.trim(),
       thumbnail: formData.thumbnail.trim() || formData.url.trim(),
       campaignTitle: formData.campaignTitle.trim() || undefined,
@@ -286,27 +250,77 @@ export default function AssetsScreen() {
     setSearchQuery('');
   }, []);
 
-  const startEditingFolder = useCallback((folderKey: FolderKey, currentLabel: string) => {
+  const startEditingFolder = useCallback((folder: AssetFolder) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setEditingFolder(folderKey);
-    setEditingFolderName(currentLabel);
+    setEditingFolder(folder);
+    setFolderNameInput(folder.name);
+    setFolderColorInput(folder.color || '#6366F1');
+    setIsFolderModalVisible(true);
   }, []);
 
-  const saveFolderName = useCallback(() => {
-    if (editingFolder && editingFolderName.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setCustomFolderLabels(prev => ({
-        ...prev,
-        [editingFolder]: editingFolderName.trim(),
-      }));
-    }
+  const openCreateFolder = useCallback(() => {
     setEditingFolder(null);
-    setEditingFolderName('');
-  }, [editingFolder, editingFolderName]);
+    setFolderNameInput('');
+    setFolderColorInput('#6366F1');
+    setIsFolderModalVisible(true);
+  }, []);
+
+  const saveFolder = useCallback(async () => {
+    if (!folderNameInput.trim()) {
+      Alert.alert('Error', 'Folder name is required');
+      return;
+    }
+    const payload = {
+      name: folderNameInput.trim(),
+      color: folderColorInput.trim() || '#6366F1',
+    };
+    const result = editingFolder
+      ? await updateAssetFolder(editingFolder.id, payload)
+      : await addAssetFolder(payload);
+    if (result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsFolderModalVisible(false);
+      setEditingFolder(null);
+      setFolderNameInput('');
+      setFolderColorInput('#6366F1');
+    } else {
+      Alert.alert('Error', result.error || 'Failed to save folder');
+    }
+  }, [addAssetFolder, editingFolder, folderColorInput, folderNameInput, updateAssetFolder]);
+
+  const handleDeleteFolder = useCallback(async () => {
+    if (!editingFolder) return;
+    Alert.alert(
+      'Delete Folder',
+      `Delete "${editingFolder.name}"? Assets inside will move to General.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteAssetFolder(editingFolder.id);
+            if (result.success) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              if (activeFolder === editingFolder.id) {
+                setActiveFolder(null);
+              }
+              setIsFolderModalVisible(false);
+              setEditingFolder(null);
+            } else {
+              Alert.alert('Error', result.error || 'Failed to delete folder');
+            }
+          },
+        },
+      ]
+    );
+  }, [activeFolder, deleteAssetFolder, editingFolder]);
 
   const cancelEditingFolder = useCallback(() => {
     setEditingFolder(null);
-    setEditingFolderName('');
+    setFolderNameInput('');
+    setFolderColorInput('#6366F1');
+    setIsFolderModalVisible(false);
   }, []);
 
   const goBack = useCallback(() => {
@@ -315,7 +329,7 @@ export default function AssetsScreen() {
     setSearchQuery('');
   }, []);
 
-  const activeFolderConfig = activeFolder ? FOLDERS.find(f => f.key === activeFolder) : null;
+  const activeFolderConfig = activeFolder ? assetFolders.find(f => f.id === activeFolder) : null;
 
   if (activeFolder && activeFolderConfig) {
     return (
@@ -327,10 +341,10 @@ export default function AssetsScreen() {
             </PressableScale>
             <View style={styles.folderHeaderInfo}>
               <View style={[styles.folderHeaderIcon, { backgroundColor: activeFolderConfig.color + '20' }]}>
-                <activeFolderConfig.icon size={20} color={activeFolderConfig.color} />
+                <FolderOpen size={20} color={activeFolderConfig.color} />
               </View>
               <View>
-                <Text style={styles.title}>{activeFolderConfig.label}</Text>
+                <Text style={styles.title}>{activeFolderConfig.name}</Text>
                 <Text style={styles.subtitle}>{filteredAssets.length} assets</Text>
               </View>
             </View>
@@ -512,6 +526,30 @@ export default function AssetsScreen() {
               </View>
 
               <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Folder *</Text>
+                <View style={styles.platformsRow}>
+                  {assetFolders.map((folder) => (
+                    <PressableScale
+                      key={folder.id}
+                      style={[
+                        styles.platformOption,
+                        formData.folderId === folder.id && styles.platformOptionActive,
+                      ]}
+                      onPress={() => setFormData(prev => ({ ...prev, folderId: folder.id }))}
+                      hapticType="selection"
+                    >
+                      <Text style={[
+                        styles.typeOptionText,
+                        formData.folderId === folder.id && styles.typeOptionTextActive,
+                      ]}>
+                        {folder.name}
+                      </Text>
+                    </PressableScale>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Asset File *</Text>
                 <View style={styles.sourceRow}>
                   <PressableScale
@@ -631,12 +669,20 @@ export default function AssetsScreen() {
             <Text style={styles.title}>Asset Library</Text>
             <Text style={styles.subtitle}>{assets.length} total assets</Text>
           </View>
-          {isAdmin && (
-            <PressableScale style={styles.addBtnSmall} onPress={openAddModal} hapticType="medium">
-              <Plus size={20} color="#FFF" />
-              <Text style={styles.addBtnText}>Upload</Text>
-            </PressableScale>
-          )}
+          <View style={styles.headerActions}>
+            {isAdmin && (
+              <PressableScale style={styles.addBtnSecondary} onPress={openCreateFolder} hapticType="medium">
+                <FolderOpen size={16} color={Colors.dark.text} />
+                <Text style={styles.addBtnSecondaryText}>Folder</Text>
+              </PressableScale>
+            )}
+            {isAdmin && (
+              <PressableScale style={styles.addBtnSmall} onPress={openAddModal} hapticType="medium">
+                <Plus size={20} color="#FFF" />
+                <Text style={styles.addBtnText}>Upload</Text>
+              </PressableScale>
+            )}
+          </View>
         </View>
       </View>
 
@@ -653,20 +699,19 @@ export default function AssetsScreen() {
         contentContainerStyle={styles.foldersScrollContent}
       >
         <View style={styles.foldersGrid}>
-          {FOLDERS.map((folder) => {
-            const FolderIcon = folder.icon;
-            const count = folderCounts[folder.key];
-            const previewAssets = getAssetsForFolder(folder.key).slice(0, 4);
+          {assetFolders.map((folder) => {
+            const count = folderCounts[folder.id] || 0;
+            const previewAssets = getAssetsForFolder(folder.id).slice(0, 4);
             
             return (
               <PressableScale 
-                key={folder.key} 
+                key={folder.id} 
                 style={styles.folderCard}
-                onPress={() => openFolder(folder.key)}
+                onPress={() => openFolder(folder.id)}
                 hapticType="light"
-                testID={`folder-${folder.key}`}
+                testID={`folder-${folder.id}`}
               >
-                <View style={[styles.folderGradient, { backgroundColor: folder.gradient }]}>
+                <View style={[styles.folderGradient, { backgroundColor: folder.color }]}>
                   <View style={styles.folderPreviewGrid}>
                     {previewAssets.length > 0 ? (
                       previewAssets.map((asset, idx) => (
@@ -687,33 +732,33 @@ export default function AssetsScreen() {
                       ))
                     ) : (
                       <View style={styles.emptyPreview}>
-                        <FolderIcon size={32} color="rgba(255,255,255,0.5)" />
+                        <FolderOpen size={32} color="rgba(255,255,255,0.5)" />
                       </View>
                     )}
                   </View>
                   
                   <View style={styles.folderIconBadge}>
-                    <FolderIcon size={16} color="#FFF" />
+                    <FolderOpen size={16} color="#FFF" />
                   </View>
                 </View>
                 
                 <View style={styles.folderInfo}>
                   <View style={styles.folderNameRow}>
-                    <Text style={styles.folderName} numberOfLines={1}>{folder.label}</Text>
+                    <Text style={styles.folderName} numberOfLines={1}>{folder.name}</Text>
                     {isAdmin && (
                       <PressableScale
                         style={styles.editFolderBtn}
-                        onPress={() => startEditingFolder(folder.key, folder.label)}
+                        onPress={() => startEditingFolder(folder)}
                         hapticType="light"
                       >
                         <Pencil size={12} color={Colors.dark.textMuted} />
                       </PressableScale>
                     )}
                   </View>
-                  <Text style={styles.folderDescription}>{folder.description}</Text>
+                  <Text style={styles.folderDescription}>Custom folder</Text>
                   <View style={styles.folderFooter}>
                     <Text style={styles.folderCount}>{count} {count === 1 ? 'asset' : 'assets'}</Text>
-                    <View style={[styles.folderDot, { backgroundColor: folder.color }]} />
+                    <View style={[styles.folderDot, { backgroundColor: folder.color || '#6366F1' }]} />
                   </View>
                 </View>
               </PressableScale>
@@ -725,28 +770,41 @@ export default function AssetsScreen() {
       </ScrollView>
 
       <Modal
-        visible={editingFolder !== null}
+        visible={isFolderModalVisible}
         transparent
         animationType="fade"
         onRequestClose={cancelEditingFolder}
       >
         <View style={styles.editFolderOverlay}>
           <View style={styles.editFolderModal}>
-            <Text style={styles.editFolderTitle}>Rename Folder</Text>
+            <Text style={styles.editFolderTitle}>{editingFolder ? 'Edit Folder' : 'New Folder'}</Text>
             <TextInput
               style={styles.editFolderInput}
-              value={editingFolderName}
-              onChangeText={setEditingFolderName}
+              value={folderNameInput}
+              onChangeText={setFolderNameInput}
               placeholder="Folder name"
               placeholderTextColor={Colors.dark.textMuted}
               autoFocus
               selectTextOnFocus
             />
+            <TextInput
+              style={styles.editFolderInput}
+              value={folderColorInput}
+              onChangeText={setFolderColorInput}
+              placeholder="#6366F1"
+              placeholderTextColor={Colors.dark.textMuted}
+              autoCapitalize="none"
+            />
             <View style={styles.editFolderActions}>
               <PressableScale style={styles.editFolderCancelBtn} onPress={cancelEditingFolder}>
                 <Text style={styles.editFolderCancelText}>Cancel</Text>
               </PressableScale>
-              <PressableScale style={styles.editFolderSaveBtn} onPress={saveFolderName}>
+              {editingFolder && editingFolder.id !== DEFAULT_ASSET_FOLDER_ID && (
+                <PressableScale style={styles.editFolderDeleteBtn} onPress={handleDeleteFolder}>
+                  <Text style={styles.editFolderDeleteText}>Delete</Text>
+                </PressableScale>
+              )}
+              <PressableScale style={styles.editFolderSaveBtn} onPress={saveFolder}>
                 <Text style={styles.editFolderSaveText}>Save</Text>
               </PressableScale>
             </View>
@@ -807,6 +865,30 @@ export default function AssetsScreen() {
                     </PressableScale>
                   );
                 })}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Folder *</Text>
+              <View style={styles.platformsRow}>
+                {assetFolders.map((folder) => (
+                  <PressableScale
+                    key={folder.id}
+                    style={[
+                      styles.platformOption,
+                      formData.folderId === folder.id && styles.platformOptionActive,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, folderId: folder.id }))}
+                    hapticType="selection"
+                  >
+                    <Text style={[
+                      styles.typeOptionText,
+                      formData.folderId === folder.id && styles.typeOptionTextActive,
+                    ]}>
+                      {folder.name}
+                    </Text>
+                  </PressableScale>
+                ))}
               </View>
             </View>
 
@@ -967,6 +1049,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  addBtnSecondaryText: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    fontWeight: '600' as const,
   },
   addBtnSmall: {
     flexDirection: 'row',
@@ -1392,5 +1495,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600' as const,
     color: '#FFF',
+  },
+  editFolderDeleteBtn: {
+    flex: 1,
+    backgroundColor: Colors.dark.error + '20',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: Colors.dark.error,
+  },
+  editFolderDeleteText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.dark.error,
   },
 });

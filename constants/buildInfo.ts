@@ -1,5 +1,5 @@
-export const BUILD_MARKER = "2026-02-11-05";
-export const BUILD_COMMIT = "img-web";
+export const BUILD_MARKER = "2026-02-11-06";
+export const BUILD_COMMIT = "folders-crud";
 
 export function getBuildLabel(appVersion?: string): string {
   const version = appVersion || "unknown";

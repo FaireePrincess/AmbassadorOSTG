@@ -76,6 +76,7 @@ export interface Asset {
   id: string;
   name: string;
   type: AssetType;
+  folderId?: string;
   url: string;
   thumbnail: string;
   campaignId?: string;
@@ -85,6 +86,14 @@ export interface Asset {
   size: string;
   downloadCount: number;
   createdAt: string;
+}
+
+export interface AssetFolder {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Event {

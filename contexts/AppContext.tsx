@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { Submission, SubmissionRating, Task, Asset, Event, AmbassadorPost } from '@/types';
+import { Submission, SubmissionRating, Task, Asset, Event, AmbassadorPost, AssetFolder } from '@/types';
 import { 
   ambassadorPosts as mockAmbassadorPosts,
   tasks as mockTasks,
@@ -10,12 +10,14 @@ import {
   submissions as mockSubmissions,
 } from '@/mocks/data';
 import { trpcClient, isBackendEnabled } from '@/lib/trpc';
+import { DEFAULT_ASSET_FOLDER, DEFAULT_ASSET_FOLDER_ID, ensureDefaultFolder } from '@/constants/assetFolders';
 
 const STORAGE_KEYS = {
   RSVPS: 'ambassador_rsvps',
   AMBASSADOR_FEED: 'ambassador_feed',
   TASKS: 'ambassador_tasks',
   ASSETS: 'ambassador_assets',
+  ASSET_FOLDERS: 'ambassador_asset_folders',
   EVENTS: 'ambassador_events',
   SUBMISSIONS: 'ambassador_submissions',
 };
@@ -25,6 +27,7 @@ const BACKEND_CACHE_FALLBACKS = {
   TASKS: [] as Task[],
   EVENTS: [] as Event[],
   ASSETS: [] as Asset[],
+  ASSET_FOLDERS: [DEFAULT_ASSET_FOLDER] as AssetFolder[],
   SUBMISSIONS: [] as Submission[],
   FEED: [] as AmbassadorPost[],
 };
@@ -56,6 +59,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetFolders, setAssetFolders] = useState<AssetFolder[]>([DEFAULT_ASSET_FOLDER]);
   const [events, setEvents] = useState<Event[]>([]);
   const [rsvpStates, setRsvpStates] = useState<Record<string, boolean>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -70,12 +74,14 @@ export const [AppProvider, useApp] = createContextHook(() => {
           cachedTasks,
           cachedEvents,
           cachedAssets,
+          cachedAssetFolders,
           cachedSubmissions,
           cachedFeed,
         ] = await Promise.all([
           loadStoredList(STORAGE_KEYS.TASKS, BACKEND_CACHE_FALLBACKS.TASKS),
           loadStoredList(STORAGE_KEYS.EVENTS, BACKEND_CACHE_FALLBACKS.EVENTS),
           loadStoredList(STORAGE_KEYS.ASSETS, BACKEND_CACHE_FALLBACKS.ASSETS),
+          loadStoredList(STORAGE_KEYS.ASSET_FOLDERS, BACKEND_CACHE_FALLBACKS.ASSET_FOLDERS),
           loadStoredList(STORAGE_KEYS.SUBMISSIONS, BACKEND_CACHE_FALLBACKS.SUBMISSIONS),
           loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, BACKEND_CACHE_FALLBACKS.FEED),
         ]);
@@ -83,7 +89,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
         // Render can cold-start/fail transiently; hydrate from last-known-good cache first.
         if (cachedTasks.length > 0) setTasks(cachedTasks);
         if (cachedEvents.length > 0) setEvents(cachedEvents);
-        if (cachedAssets.length > 0) setAssets(cachedAssets);
+        if (cachedAssets.length > 0) setAssets(cachedAssets.map(asset => ({ ...asset, folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID })));
+        if (cachedAssetFolders.length > 0) setAssetFolders(ensureDefaultFolder(cachedAssetFolders));
         if (cachedSubmissions.length > 0) setSubmissions(cachedSubmissions);
         if (cachedFeed.length > 0) setAmbassadorFeed(cachedFeed);
 
@@ -91,6 +98,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           backendTasks,
           backendEvents,
           backendAssets,
+          backendAssetFolders,
           backendSubmissions,
           backendFeed,
           storedRsvps,
@@ -105,6 +113,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }),
           trpcClient.assets.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch assets from backend:', e);
+            return null;
+          }),
+          trpcClient.assets.listFolders.query().catch((e) => {
+            console.log('[AppContext] Failed to fetch asset folders from backend:', e);
             return null;
           }),
           trpcClient.submissions.list.query().catch((e) => {
@@ -127,8 +139,14 @@ export const [AppProvider, useApp] = createContextHook(() => {
           void saveStoredList(STORAGE_KEYS.EVENTS, backendEvents);
         }
         if (Array.isArray(backendAssets)) {
-          setAssets(backendAssets);
-          void saveStoredList(STORAGE_KEYS.ASSETS, backendAssets);
+          const normalizedAssets = backendAssets.map(asset => ({ ...asset, folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID }));
+          setAssets(normalizedAssets);
+          void saveStoredList(STORAGE_KEYS.ASSETS, normalizedAssets);
+        }
+        if (Array.isArray(backendAssetFolders)) {
+          const normalizedFolders = ensureDefaultFolder(backendAssetFolders);
+          setAssetFolders(normalizedFolders);
+          void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, normalizedFolders);
         }
         if (Array.isArray(backendSubmissions)) {
           setSubmissions(backendSubmissions);
@@ -165,6 +183,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         storedTasks,
         storedEvents,
         storedAssets,
+        storedAssetFolders,
         storedSubmissions,
         storedFeed,
         storedRsvps,
@@ -172,6 +191,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         loadStoredList(STORAGE_KEYS.TASKS, mockTasks),
         loadStoredList(STORAGE_KEYS.EVENTS, mockEvents),
         loadStoredList(STORAGE_KEYS.ASSETS, mockAssets),
+        loadStoredList(STORAGE_KEYS.ASSET_FOLDERS, BACKEND_CACHE_FALLBACKS.ASSET_FOLDERS),
         loadStoredList(STORAGE_KEYS.SUBMISSIONS, mockSubmissions),
         loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, mockAmbassadorPosts),
         AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
@@ -179,7 +199,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
       setTasks(storedTasks);
       setEvents(storedEvents);
-      setAssets(storedAssets);
+      setAssets(storedAssets.map(asset => ({ ...asset, folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID })));
+      setAssetFolders(ensureDefaultFolder(storedAssetFolders));
       setSubmissions(storedSubmissions);
       setAmbassadorFeed(storedFeed);
 
@@ -477,6 +498,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
         const result = await trpcClient.assets.create.mutate({
           name: asset.name,
           type: asset.type,
+          folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID,
           url: asset.url,
           thumbnail: asset.thumbnail,
           campaignId: asset.campaignId,
@@ -486,7 +508,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           size: asset.size,
         });
         
-        setAssets(prev => [result, ...prev]);
+        setAssets(prev => [{ ...result, folderId: result.folderId || DEFAULT_ASSET_FOLDER_ID }, ...prev]);
         
         console.log('[AppContext] Asset added to backend:', result.id);
         return { success: true, asset: result };
@@ -494,6 +516,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
       const newAsset: Asset = {
         ...asset,
+        folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID,
         id: `asset-${Date.now()}`,
         downloadCount: 0,
         createdAt: new Date().toISOString(),
@@ -560,6 +583,95 @@ export const [AppProvider, useApp] = createContextHook(() => {
     } catch (error) {
       console.log('[AppContext] Error deleting asset:', error);
       return { success: false, error: 'Failed to delete asset' };
+    }
+  }, []);
+
+  const addAssetFolder = useCallback(async (folder: { name: string; color?: string }) => {
+    try {
+      if (BACKEND_ENABLED) {
+        const created = await trpcClient.assets.createFolder.mutate({
+          name: folder.name,
+          color: folder.color,
+        });
+        setAssetFolders(prev => ensureDefaultFolder([...prev, created]));
+        return { success: true, folder: created };
+      }
+
+      const created: AssetFolder = {
+        id: `folder-${Date.now()}`,
+        name: folder.name.trim(),
+        color: folder.color || '#6366F1',
+        createdAt: new Date().toISOString(),
+      };
+      setAssetFolders(prev => {
+        const updated = ensureDefaultFolder([...prev, created]);
+        void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, updated);
+        return updated;
+      });
+      return { success: true, folder: created };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Failed to create folder';
+      console.log('[AppContext] Error creating asset folder:', errMsg, error);
+      return { success: false, error: errMsg };
+    }
+  }, []);
+
+  const updateAssetFolder = useCallback(async (folderId: string, updates: { name?: string; color?: string }) => {
+    try {
+      if (BACKEND_ENABLED) {
+        const updated = await trpcClient.assets.updateFolder.mutate({
+          id: folderId,
+          ...updates,
+        });
+        setAssetFolders(prev => ensureDefaultFolder(prev.map(folder => folder.id === folderId ? updated : folder)));
+        return { success: true };
+      }
+
+      setAssetFolders(prev => {
+        const updated = ensureDefaultFolder(prev.map(folder => (
+          folder.id === folderId
+            ? { ...folder, ...updates, updatedAt: new Date().toISOString() }
+            : folder
+        )));
+        void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, updated);
+        return updated;
+      });
+      return { success: true };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Failed to update folder';
+      console.log('[AppContext] Error updating asset folder:', errMsg, error);
+      return { success: false, error: errMsg };
+    }
+  }, []);
+
+  const deleteAssetFolder = useCallback(async (folderId: string) => {
+    if (folderId === DEFAULT_ASSET_FOLDER_ID) {
+      return { success: false, error: 'Default folder cannot be deleted' };
+    }
+
+    try {
+      if (BACKEND_ENABLED) {
+        await trpcClient.assets.deleteFolder.mutate({ id: folderId });
+        setAssetFolders(prev => ensureDefaultFolder(prev.filter(folder => folder.id !== folderId)));
+        setAssets(prev => prev.map(asset => asset.folderId === folderId ? { ...asset, folderId: DEFAULT_ASSET_FOLDER_ID } : asset));
+        return { success: true };
+      }
+
+      setAssetFolders(prev => {
+        const updated = ensureDefaultFolder(prev.filter(folder => folder.id !== folderId));
+        void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, updated);
+        return updated;
+      });
+      setAssets(prev => {
+        const updated = prev.map(asset => asset.folderId === folderId ? { ...asset, folderId: DEFAULT_ASSET_FOLDER_ID } : asset);
+        void saveStoredList(STORAGE_KEYS.ASSETS, updated);
+        return updated;
+      });
+      return { success: true };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Failed to delete folder';
+      console.log('[AppContext] Error deleting asset folder:', errMsg, error);
+      return { success: false, error: errMsg };
     }
   }, []);
 
@@ -711,6 +823,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     pendingSubmissions,
     tasks,
     assets,
+    assetFolders,
     events,
     rsvpStates,
     isRefreshing,
@@ -726,6 +839,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     addAsset,
     updateAsset,
     deleteAsset,
+    addAssetFolder,
+    updateAssetFolder,
+    deleteAssetFolder,
     addEvent,
     updateEvent,
     deleteEvent,
