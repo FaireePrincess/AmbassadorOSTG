@@ -248,8 +248,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoggingOutRef.current = true;
     setCurrentUser(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
-    await AsyncStorage.removeItem(USERS_STORAGE_KEY);
-    setUsers([]);
     isLoggingOutRef.current = false;
   }, []);
 

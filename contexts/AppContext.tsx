@@ -21,6 +21,13 @@ const STORAGE_KEYS = {
 };
 
 const BACKEND_ENABLED = isBackendEnabled();
+const BACKEND_CACHE_FALLBACKS = {
+  TASKS: [] as Task[],
+  EVENTS: [] as Event[],
+  ASSETS: [] as Asset[],
+  SUBMISSIONS: [] as Submission[],
+  FEED: [] as AmbassadorPost[],
+};
 
 async function loadStoredList<T>(key: string, fallback: T[]): Promise<T[]> {
   try {
@@ -60,6 +67,27 @@ export const [AppProvider, useApp] = createContextHook(() => {
     try {
       if (BACKEND_ENABLED) {
         const [
+          cachedTasks,
+          cachedEvents,
+          cachedAssets,
+          cachedSubmissions,
+          cachedFeed,
+        ] = await Promise.all([
+          loadStoredList(STORAGE_KEYS.TASKS, BACKEND_CACHE_FALLBACKS.TASKS),
+          loadStoredList(STORAGE_KEYS.EVENTS, BACKEND_CACHE_FALLBACKS.EVENTS),
+          loadStoredList(STORAGE_KEYS.ASSETS, BACKEND_CACHE_FALLBACKS.ASSETS),
+          loadStoredList(STORAGE_KEYS.SUBMISSIONS, BACKEND_CACHE_FALLBACKS.SUBMISSIONS),
+          loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, BACKEND_CACHE_FALLBACKS.FEED),
+        ]);
+
+        // Render can cold-start/fail transiently; hydrate from last-known-good cache first.
+        if (cachedTasks.length > 0) setTasks(cachedTasks);
+        if (cachedEvents.length > 0) setEvents(cachedEvents);
+        if (cachedAssets.length > 0) setAssets(cachedAssets);
+        if (cachedSubmissions.length > 0) setSubmissions(cachedSubmissions);
+        if (cachedFeed.length > 0) setAmbassadorFeed(cachedFeed);
+
+        const [
           backendTasks,
           backendEvents,
           backendAssets,
@@ -90,11 +118,26 @@ export const [AppProvider, useApp] = createContextHook(() => {
           AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
         ]);
 
-        if (Array.isArray(backendTasks)) setTasks(backendTasks);
-        if (Array.isArray(backendEvents)) setEvents(backendEvents);
-        if (Array.isArray(backendAssets)) setAssets(backendAssets);
-        if (Array.isArray(backendSubmissions)) setSubmissions(backendSubmissions);
-        if (Array.isArray(backendFeed)) setAmbassadorFeed(backendFeed);
+        if (Array.isArray(backendTasks)) {
+          setTasks(backendTasks);
+          void saveStoredList(STORAGE_KEYS.TASKS, backendTasks);
+        }
+        if (Array.isArray(backendEvents)) {
+          setEvents(backendEvents);
+          void saveStoredList(STORAGE_KEYS.EVENTS, backendEvents);
+        }
+        if (Array.isArray(backendAssets)) {
+          setAssets(backendAssets);
+          void saveStoredList(STORAGE_KEYS.ASSETS, backendAssets);
+        }
+        if (Array.isArray(backendSubmissions)) {
+          setSubmissions(backendSubmissions);
+          void saveStoredList(STORAGE_KEYS.SUBMISSIONS, backendSubmissions);
+        }
+        if (Array.isArray(backendFeed)) {
+          setAmbassadorFeed(backendFeed);
+          void saveStoredList(STORAGE_KEYS.AMBASSADOR_FEED, backendFeed);
+        }
 
         if (storedRsvps) {
           try {
