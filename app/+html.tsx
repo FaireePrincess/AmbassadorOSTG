@@ -10,9 +10,6 @@ export default function RootHtml() {
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
         />
         <script src="https://telegram.org/js/telegram-web-app.js?59" />
-        <style>{`
-          img { backface-visibility: hidden; transform: translateZ(0); }
-        `}</style>
       </Head>
       <Body>
         <Main />

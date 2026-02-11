@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Image as ExpoImage, type ImageProps as ExpoImageProps } from 'expo-image';
 import { Image as RNImage, Platform, StyleSheet, type StyleProp, type ImageStyle } from 'react-native';
 
@@ -25,12 +25,13 @@ function resolveUri(source: Source): string | null {
 
 function StableImageImpl({ source, style, contentFit = 'cover', cachePolicy = 'memory-disk', transition = 0, testID }: StableImageProps) {
   const uri = resolveUri(source);
+  const webSource = useMemo(() => (uri ? { uri } : undefined), [uri]);
   if (!uri) return null;
 
   if (Platform.OS === 'web') {
     return (
       <RNImage
-        source={{ uri }}
+        source={webSource}
         style={[style, Platform.OS === 'web' && styles.webImage]}
         resizeMode={contentFit === 'contain' ? 'contain' : 'cover'}
         testID={testID}
@@ -51,10 +52,29 @@ function StableImageImpl({ source, style, contentFit = 'cover', cachePolicy = 'm
   );
 }
 
+function isStyleArray(value: StyleProp<ImageStyle>): value is StyleProp<ImageStyle>[] {
+  return Array.isArray(value);
+}
+
+function styleEquals(a?: StyleProp<ImageStyle>, b?: StyleProp<ImageStyle>): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  if (isStyleArray(a) && isStyleArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function areEqual(prev: StableImageProps, next: StableImageProps): boolean {
   return (
     resolveUri(prev.source) === resolveUri(next.source) &&
-    prev.style === next.style &&
+    styleEquals(prev.style, next.style) &&
     prev.contentFit === next.contentFit &&
     prev.cachePolicy === next.cachePolicy &&
     prev.transition === next.transition &&
