@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking, PanResponder } from 'react-native';
 import Image from '@/components/StableImage';
+import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
@@ -8,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
 import { AVATAR_PRESETS, normalizeAvatarUri } from '@/constants/avatarPresets';
+import { getBuildLabel } from '@/constants/buildInfo';
 
 import { useAuth } from '@/contexts/AuthContext';
 import StatCard from '@/components/StatCard';
@@ -199,6 +201,7 @@ export default function ProfileScreen() {
 
   const user = currentUser;
   const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.uri === normalizeAvatarUri(editAvatar || user.avatar)) || AVATAR_PRESETS[0];
+  const buildLabel = getBuildLabel(Constants.expoConfig?.version);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -227,6 +230,7 @@ export default function ProfileScreen() {
             <Image source={normalizeAvatarUri(user.avatar)} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
             <Text style={styles.userName} testID="profile-name">{user.name}</Text>
             <Text style={styles.userRole}>{user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')} • {user.region}</Text>
+            <Text style={styles.buildLabel}>Build {buildLabel}</Text>
             
             <View style={styles.rankContainer}>
               <View style={styles.rankBadge}>
@@ -790,7 +794,12 @@ const styles = StyleSheet.create({
   userRole: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
-    marginBottom: 16,
+    marginBottom: 6,
+  },
+  buildLabel: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginBottom: 14,
   },
   rankContainer: {
     flexDirection: 'row',
@@ -1124,27 +1133,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    gap: 10,
   },
   avatarPagerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
-    backgroundColor: Colors.dark.surface,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: Colors.dark.primary + '22',
+    borderWidth: 1.5,
+    borderColor: Colors.dark.primary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flex: 1,
   },
   avatarPagerBtnText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
+    fontSize: 13,
+    fontWeight: '700' as const,
     color: Colors.dark.primary,
   },
   avatarPagerLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700' as const,
     color: Colors.dark.text,
+    minWidth: 56,
+    textAlign: 'center',
   },
   avatarPresetCard: {
     backgroundColor: Colors.dark.surface,
