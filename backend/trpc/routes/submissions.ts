@@ -7,6 +7,7 @@ import type { Submission, SubmissionStatus, Platform, AmbassadorPost, User } fro
 const SUBMISSIONS_COLLECTION = "submissions";
 const POSTS_COLLECTION = "ambassador_posts";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 
 function validateScreenshot(screenshotUrl?: string) {
   if (!screenshotUrl) return;
@@ -17,21 +18,25 @@ function validateScreenshot(screenshotUrl?: string) {
 
 async function ensureSubmissionsInitialized(): Promise<void> {
   const dbSubmissions = await db.getCollection<Submission>(SUBMISSIONS_COLLECTION);
-  if (dbSubmissions.length === 0) {
+  if (dbSubmissions.length === 0 && ENABLE_DEFAULT_SEEDING) {
     console.log("[Submissions] No submissions in DB, initializing with defaults");
     for (const sub of initialSubmissions) {
       await db.create(SUBMISSIONS_COLLECTION, sub);
     }
+  } else if (dbSubmissions.length === 0) {
+    console.log("[Submissions] Collection empty, seeding disabled");
   }
 }
 
 async function ensurePostsInitialized(): Promise<void> {
   const dbPosts = await db.getCollection<AmbassadorPost>(POSTS_COLLECTION);
-  if (dbPosts.length === 0) {
+  if (dbPosts.length === 0 && ENABLE_DEFAULT_SEEDING) {
     console.log("[Submissions] No posts in DB, initializing with defaults");
     for (const post of initialPosts) {
       await db.create(POSTS_COLLECTION, post);
     }
+  } else if (dbPosts.length === 0) {
+    console.log("[Submissions] Posts collection empty, seeding disabled");
   }
 }
 

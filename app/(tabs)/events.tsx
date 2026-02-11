@@ -9,9 +9,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 import { EventType, Event } from '@/types';
-import ImagePicker from '@/components/ImagePicker';
 
 type FilterType = 'all' | EventType;
+
+const EVENT_IMAGE_PRESETS = [
+  'https://images.unsplash.com/photo-1515169067868-5387ec356754?w=800&h=500&fit=crop',
+  'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&h=500&fit=crop',
+  'https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&h=500&fit=crop',
+  'https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?w=800&h=500&fit=crop',
+];
 
 export default function EventsScreen() {
   const { isAdmin } = useAuth();
@@ -486,12 +492,20 @@ export default function EventsScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Event Image</Text>
-              <ImagePicker
-                value={formData.thumbnail}
-                onChange={(uri) => setFormData(prev => ({ ...prev, thumbnail: uri }))}
-                placeholder="Add event image"
-                height={140}
-              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagePresetRow}>
+                {EVENT_IMAGE_PRESETS.map((imageUrl) => {
+                  const isSelected = formData.thumbnail === imageUrl;
+                  return (
+                    <PressableScale
+                      key={imageUrl}
+                      onPress={() => setFormData(prev => ({ ...prev, thumbnail: imageUrl }))}
+                      style={[styles.imagePresetCard, isSelected && styles.imagePresetCardActive]}
+                    >
+                      <Image source={{ uri: imageUrl }} style={styles.imagePreset} />
+                    </PressableScale>
+                  );
+                })}
+              </ScrollView>
             </View>
 
             <View style={styles.modalBottomPadding} />
@@ -801,4 +815,24 @@ const styles = StyleSheet.create({
   modalBottomPadding: {
     height: 40,
   },
+  imagePresetRow: {
+    gap: 10,
+  },
+  imagePresetCard: {
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  imagePresetCardActive: {
+    borderColor: Colors.dark.primary,
+  },
+  imagePreset: {
+    width: 150,
+    height: 90,
+  },
 });
+    if (formData.thumbnail.startsWith('data:')) {
+      Alert.alert('Image Too Large', 'Please use one of the preset event images for now.');
+      return;
+    }

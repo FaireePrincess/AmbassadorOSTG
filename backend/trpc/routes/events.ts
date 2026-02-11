@@ -6,6 +6,7 @@ import type { Event, EventType } from "@/types";
 
 const COLLECTION = "events";
 const MAX_DATA_URI_LENGTH = 300_000;
+const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 
 function validateEventThumbnail(thumbnail: string) {
   if (!thumbnail.startsWith("data:image/")) return;
@@ -16,11 +17,13 @@ function validateEventThumbnail(thumbnail: string) {
 
 async function ensureInitialized(): Promise<void> {
   const dbEvents = await db.getCollection<Event>(COLLECTION);
-  if (dbEvents.length === 0) {
+  if (dbEvents.length === 0 && ENABLE_DEFAULT_SEEDING) {
     console.log("[Events] No events in DB, initializing with defaults");
     for (const event of initialEvents) {
       await db.create(COLLECTION, event);
     }
+  } else if (dbEvents.length === 0) {
+    console.log("[Events] Collection empty, seeding disabled");
   }
 }
 

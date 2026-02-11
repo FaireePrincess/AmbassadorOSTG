@@ -6,6 +6,7 @@ import type { User, UserRole, UserStatus } from "@/types";
 
 const COLLECTION = "users";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 let initialized = false;
 let usersCache: User[] = [];
 
@@ -19,12 +20,15 @@ function validateAvatar(avatar?: string) {
 async function getUsers(forceRefresh = false): Promise<User[]> {
   if (!initialized || forceRefresh) {
     const dbUsers = await db.getCollection<User>(COLLECTION);
-    if (dbUsers.length === 0 && !initialized) {
+    if (dbUsers.length === 0 && !initialized && ENABLE_DEFAULT_SEEDING) {
       console.log("[Users] No users in DB, initializing with defaults");
       for (const user of initialUsers) {
         await db.create(COLLECTION, user);
       }
       usersCache = [...initialUsers];
+    } else if (dbUsers.length === 0 && !initialized) {
+      console.log("[Users] Collection empty, seeding disabled");
+      usersCache = [];
     } else {
       usersCache = dbUsers;
     }

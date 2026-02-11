@@ -6,6 +6,7 @@ import type { Asset, AssetType, Platform } from "@/types";
 
 const COLLECTION = "assets";
 const MAX_INLINE_DATA_URI_LENGTH = 300_000;
+const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 
 function validateInlineMedia(label: string, value?: string) {
   if (!value) return;
@@ -16,11 +17,13 @@ function validateInlineMedia(label: string, value?: string) {
 
 async function ensureInitialized(): Promise<void> {
   const dbAssets = await db.getCollection<Asset>(COLLECTION);
-  if (dbAssets.length === 0) {
+  if (dbAssets.length === 0 && ENABLE_DEFAULT_SEEDING) {
     console.log("[Assets] No assets in DB, initializing with defaults");
     for (const asset of initialAssets) {
       await db.create(COLLECTION, asset);
     }
+  } else if (dbAssets.length === 0) {
+    console.log("[Assets] Collection empty, seeding disabled");
   }
 }
 

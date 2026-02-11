@@ -18,16 +18,6 @@ type TabType = 'submissions' | 'stats';
 
 const AVATAR_PRESETS = [
   {
-    id: 'monkey',
-    label: 'Monkey',
-    uri: 'https://api.dicebear.com/9.x/shapes/png?seed=MonkeyBadge&backgroundColor=b6e3f4',
-  },
-  {
-    id: 'unicorn',
-    label: 'Unicorn',
-    uri: 'https://api.dicebear.com/9.x/shapes/png?seed=UnicornBadge&backgroundColor=ffd5dc',
-  },
-  {
     id: 'bear',
     label: 'Bear',
     uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede',
@@ -507,7 +497,11 @@ export default function ProfileScreen() {
             <View style={styles.avatarSection}>
               <Image source={{ uri: editAvatar || user.avatar }} style={styles.editAvatar} />
               <Text style={styles.inputLabel}>Choose Avatar</Text>
-              <View style={styles.avatarPresetRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.avatarPresetRow}
+              >
                 {AVATAR_PRESETS.map((preset) => {
                   const selected = editAvatar === preset.uri;
                   return (
@@ -523,7 +517,7 @@ export default function ProfileScreen() {
                     </PressableScale>
                   );
                 })}
-              </View>
+              </ScrollView>
             </View>
 
             <View style={styles.inputGroup}>

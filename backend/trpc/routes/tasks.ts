@@ -6,6 +6,7 @@ import type { Task, TaskStatus, Platform } from "@/types";
 
 const COLLECTION = "tasks";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
+const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 
 function validateTaskThumbnail(thumbnail?: string) {
   if (!thumbnail) return;
@@ -16,11 +17,13 @@ function validateTaskThumbnail(thumbnail?: string) {
 
 async function ensureInitialized(): Promise<void> {
   const dbTasks = await db.getCollection<Task>(COLLECTION);
-  if (dbTasks.length === 0) {
+  if (dbTasks.length === 0 && ENABLE_DEFAULT_SEEDING) {
     console.log("[Tasks] No tasks in DB, initializing with defaults");
     for (const task of initialTasks) {
       await db.create(COLLECTION, task);
     }
+  } else if (dbTasks.length === 0) {
+    console.log("[Tasks] Collection empty, seeding disabled");
   }
 }
 
