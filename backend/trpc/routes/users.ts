@@ -86,11 +86,14 @@ export const usersRouter = createTRPCRouter({
   activate: publicProcedure
     .input(z.object({ email: z.string(), inviteCode: z.string(), password: z.string() }))
     .mutation(async ({ input }) => {
-      console.log("[Users] Activation attempt with email:", input.email, "code:", input.inviteCode);
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const normalizedInviteCode = input.inviteCode.trim().toUpperCase();
+
+      console.log("[Users] Activation attempt with email:", normalizedEmail, "code:", normalizedInviteCode);
       const users = await getUsers();
       
       // First, find user by email to give better error messages
-      const userByEmail = users.find((u) => u.email.toLowerCase() === input.email.toLowerCase());
+      const userByEmail = users.find((u) => u.email.trim().toLowerCase() === normalizedEmail);
       
       if (!userByEmail) {
         console.log("[Users] Activation failed - email not found:", input.email);
@@ -108,8 +111,9 @@ export const usersRouter = createTRPCRouter({
       }
       
       // Verify invite code matches
-      if (userByEmail.inviteCode !== input.inviteCode) {
-        console.log("[Users] Activation failed - wrong invite code for:", input.email, "expected:", userByEmail.inviteCode, "got:", input.inviteCode);
+      const expectedInviteCode = userByEmail.inviteCode?.trim().toUpperCase();
+      if (expectedInviteCode !== normalizedInviteCode) {
+        console.log("[Users] Activation failed - wrong invite code for:", normalizedEmail, "expected:", userByEmail.inviteCode, "got:", normalizedInviteCode);
         throw new Error("Incorrect invite code. Please check the code sent by your admin.");
       }
       
@@ -147,11 +151,47 @@ export const usersRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const inviteCode = `FSL${Date.now().toString(36).toUpperCase()}`;
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const users = await getUsers(true);
+      const existing = users.find((u) => u.email.trim().toLowerCase() === normalizedEmail);
+
+      if (existing) {
+        if (existing.status === "active") {
+          throw new Error("A user with this email already exists and is active.");
+        }
+        if (existing.status === "suspended") {
+          throw new Error("A suspended user with this email already exists.");
+        }
+
+        const refreshedInviteCode = `FSL${Date.now().toString(36).toUpperCase()}`;
+        const refreshedUser: User = {
+          ...existing,
+          name: input.name,
+          role: input.role as UserRole,
+          region: input.region,
+          fslEmail: input.fslEmail,
+          handles: input.handles || existing.handles || {},
+          inviteCode: refreshedInviteCode,
+          status: "pending",
+        };
+
+        await db.update(COLLECTION, existing.id, refreshedUser);
+        const existingIndex = usersCache.findIndex((u) => u.id === existing.id);
+        if (existingIndex >= 0) {
+          usersCache[existingIndex] = refreshedUser;
+        } else {
+          usersCache.push(refreshedUser);
+        }
+
+        console.log("[Users] Refreshed invite code for existing pending user:", existing.id, "invite code:", refreshedInviteCode);
+        return refreshedUser;
+      }
+
       const newUser: User = {
         id: `user-${Date.now()}`,
         name: input.name,
         avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
-        email: input.email,
+        email: normalizedEmail,
         role: input.role as UserRole,
         region: input.region,
         fslEmail: input.fslEmail,
