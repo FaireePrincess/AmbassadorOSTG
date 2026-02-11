@@ -95,12 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await syncCurrentUserRecord(parsed);
           return parsed;
         }
+        // In backend mode, never silently fall back to mock users when backend is temporarily unavailable.
+        return users;
       }
       setUsers(mockUsers);
       await syncCurrentUserRecord(mockUsers);
       return mockUsers;
     }
-  }, [syncCurrentUserRecord]);
+  }, [syncCurrentUserRecord, users]);
 
   const saveUsers = useCallback(async (updatedUsers: User[]) => {
     try {
@@ -156,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('[Auth] Login successful (backend):', user.name);
         setCurrentUser(user);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        await loadUsers();
         return { success: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Login failed';
@@ -192,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(user);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
     return { success: true };
-  }, []);
+  }, [loadUsers]);
 
   const activateAccount = useCallback(async (email: string, inviteCode: string, password: string): Promise<{ success: boolean; error?: string }> => {
     if (BACKEND_ENABLED) {
