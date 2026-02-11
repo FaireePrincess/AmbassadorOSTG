@@ -27,6 +27,46 @@ const AVATAR_PRESETS = [
     label: 'Unicorn',
     uri: 'https://api.dicebear.com/9.x/shapes/png?seed=UnicornBadge&backgroundColor=ffd5dc',
   },
+  {
+    id: 'bear',
+    label: 'Bear',
+    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede',
+  },
+  {
+    id: 'cat',
+    label: 'Cat',
+    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Cat&backgroundColor=fde68a',
+  },
+  {
+    id: 'fox',
+    label: 'Fox',
+    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Fox&backgroundColor=fca5a5',
+  },
+  {
+    id: 'panda',
+    label: 'Panda',
+    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Panda&backgroundColor=93c5fd',
+  },
+  {
+    id: 'robot',
+    label: 'Robot',
+    uri: 'https://api.dicebear.com/9.x/bottts/png?seed=RobotX&backgroundColor=86efac',
+  },
+  {
+    id: 'alien',
+    label: 'Alien',
+    uri: 'https://api.dicebear.com/9.x/bottts/png?seed=AlienY&backgroundColor=f9a8d4',
+  },
+  {
+    id: 'wizard',
+    label: 'Wizard',
+    uri: 'https://api.dicebear.com/9.x/adventurer/png?seed=WizardZ&backgroundColor=d9f99d',
+  },
+  {
+    id: 'ninja',
+    label: 'Ninja',
+    uri: 'https://api.dicebear.com/9.x/adventurer/png?seed=NinjaQ&backgroundColor=fdba74',
+  },
 ];
 
 export default function ProfileScreen() {
