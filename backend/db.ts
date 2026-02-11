@@ -72,6 +72,9 @@ let fsAvailable = true;
 
 const DATA_DIR = getEnvVar('DATA_DIR') || './data';
 const DATA_FILE = `${DATA_DIR}/db.json`;
+const DATA_FILE_TMP = `${DATA_DIR}/db.json.tmp`;
+const DATA_FILE_BAK = `${DATA_DIR}/db.json.bak`;
+let fileStoreLoadError: string | null = null;
 
 async function getFs() {
   if (!fsAvailable) return null;
@@ -97,11 +100,31 @@ async function ensureFileStoreLoaded(): Promise<void> {
     if (parsed && typeof parsed === 'object') {
       Object.assign(memoryStore, parsed);
     }
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { code?: string; message?: string };
+    const missingFile = err?.code === 'ENOENT';
+    if (missingFile) {
+      try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+      } catch {
+      }
+      return;
+    }
+
+    // If primary file is corrupted, try backup before declaring failure.
     try {
-      await fs.mkdir(DATA_DIR, { recursive: true });
+      const backupRaw = await fs.readFile(DATA_FILE_BAK, 'utf8');
+      const backupParsed = JSON.parse(backupRaw);
+      if (backupParsed && typeof backupParsed === 'object') {
+        Object.assign(memoryStore, backupParsed);
+        console.log('[DB] Recovered data from backup file');
+        return;
+      }
     } catch {
     }
+
+    fileStoreLoadError = err?.message || 'Failed to load file store';
+    console.log('[DB] ERROR: Failed to load file store, refusing silent reset:', fileStoreLoadError);
   }
 }
 
@@ -111,13 +134,25 @@ async function persistFileStore(): Promise<void> {
 
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(DATA_FILE, JSON.stringify(memoryStore, null, 2), 'utf8');
+    const payload = JSON.stringify(memoryStore, null, 2);
+    await fs.writeFile(DATA_FILE_TMP, payload, 'utf8');
+
+    try {
+      const current = await fs.readFile(DATA_FILE, 'utf8');
+      await fs.writeFile(DATA_FILE_BAK, current, 'utf8');
+    } catch {
+    }
+
+    await fs.rename(DATA_FILE_TMP, DATA_FILE);
   } catch {
   }
 }
 
 async function getMemoryCollection(collection: string): Promise<unknown[]> {
   await ensureFileStoreLoaded();
+  if (fileStoreLoadError) {
+    throw new Error(`File store unavailable: ${fileStoreLoadError}`);
+  }
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
   }
@@ -126,6 +161,9 @@ async function getMemoryCollection(collection: string): Promise<unknown[]> {
 
 async function setMemoryItem(collection: string, id: string, data: unknown): Promise<void> {
   await ensureFileStoreLoaded();
+  if (fileStoreLoadError) {
+    throw new Error(`File store unavailable: ${fileStoreLoadError}`);
+  }
   if (!memoryStore[collection]) {
     memoryStore[collection] = {};
   }
@@ -135,6 +173,9 @@ async function setMemoryItem(collection: string, id: string, data: unknown): Pro
 
 async function deleteMemoryItem(collection: string, id: string): Promise<void> {
   await ensureFileStoreLoaded();
+  if (fileStoreLoadError) {
+    throw new Error(`File store unavailable: ${fileStoreLoadError}`);
+  }
   if (memoryStore[collection]) {
     delete memoryStore[collection][id];
     await persistFileStore();
@@ -342,5 +383,6 @@ export async function getStorageDiagnostics() {
     dataFileExists,
     dataFileSizeBytes,
     fileStoreLoaded,
+    fileStoreLoadError,
   };
 }

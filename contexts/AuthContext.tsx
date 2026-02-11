@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
 import { allUsers as mockUsers } from '@/mocks/data';
@@ -7,6 +8,7 @@ import { trpcClient, isBackendEnabled } from '@/lib/trpc';
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
 const BACKEND_ENABLED = isBackendEnabled();
+const AUTO_LOGOUT_ON_BACKGROUND = true;
 
 interface AuthContextType {
   currentUser: User | null;
@@ -37,8 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoggingOutRef = useRef(false);
 
   const syncCurrentUserRecord = useCallback(async (updatedUsers: User[]) => {
+    if (isLoggingOutRef.current) return;
     if (!currentUser) return;
     const latest = updatedUsers.find((u) => u.id === currentUser.id);
     if (!latest) return;
@@ -228,9 +232,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [saveUsers, loadUsers]);
 
   const logout = useCallback(async () => {
+    isLoggingOutRef.current = true;
     setCurrentUser(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
+    setTimeout(() => {
+      isLoggingOutRef.current = false;
+    }, 0);
   }, []);
+
+  useEffect(() => {
+    if (!AUTO_LOGOUT_ON_BACKGROUND) return;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && currentUser) {
+        void logout();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [currentUser, logout]);
 
   const generateInviteCode = useCallback(() => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
