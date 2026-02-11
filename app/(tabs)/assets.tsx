@@ -389,7 +389,7 @@ export default function AssetsScreen() {
 
                 return (
                   <View key={asset.id} style={styles.assetCard}>
-                    <Image source={{ uri: asset.thumbnail }} style={styles.assetImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                    <Image source={asset.thumbnail} style={styles.assetImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                     
                     <View style={styles.assetOverlay}>
                       <View style={[styles.typeBadge, { backgroundColor: typeConfig.color }]}>
@@ -672,7 +672,7 @@ export default function AssetsScreen() {
                       previewAssets.map((asset, idx) => (
                         <Image 
                           key={asset.id} 
-                          source={{ uri: asset.thumbnail }} 
+                          source={asset.thumbnail} 
                           contentFit="cover"
                           cachePolicy="memory-disk"
                           transition={0}
