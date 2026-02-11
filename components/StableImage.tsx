@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Image as ExpoImage, type ImageProps as ExpoImageProps } from 'expo-image';
-import { Image as RNImage, Platform, type StyleProp, type ImageStyle } from 'react-native';
+import { Image as RNImage, Platform, StyleSheet, type StyleProp, type ImageStyle } from 'react-native';
 
 type Source = string | { uri: string } | null | undefined;
 
@@ -31,7 +31,7 @@ function StableImageImpl({ source, style, contentFit = 'cover', cachePolicy = 'm
     return (
       <RNImage
         source={{ uri }}
-        style={style}
+        style={[style, Platform.OS === 'web' && styles.webImage]}
         resizeMode={contentFit === 'contain' ? 'contain' : 'cover'}
         testID={testID}
       />
@@ -65,3 +65,9 @@ function areEqual(prev: StableImageProps, next: StableImageProps): boolean {
 const StableImage = memo(StableImageImpl, areEqual);
 
 export default StableImage;
+
+const styles = StyleSheet.create({
+  webImage: {
+    backfaceVisibility: 'hidden',
+  },
+});

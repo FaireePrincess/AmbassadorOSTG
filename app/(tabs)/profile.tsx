@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking, PanResponder } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -131,6 +131,21 @@ export default function ProfileScreen() {
     const nextIndex = (safeIndex + direction + AVATAR_PRESETS.length) % AVATAR_PRESETS.length;
     setEditAvatar(AVATAR_PRESETS[nextIndex].uri);
   }, [editAvatar]);
+  const avatarPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dx) > 16 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dx <= -30) {
+            selectRelativeAvatar(1);
+          } else if (gestureState.dx >= 30) {
+            selectRelativeAvatar(-1);
+          }
+        },
+      }),
+    [selectRelativeAvatar]
+  );
 
   const openPasswordModal = useCallback(() => {
     setCurrentPassword('');
@@ -463,7 +478,10 @@ export default function ProfileScreen() {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarSection}>
-              <Image source={normalizeAvatarUri(editAvatar || user.avatar)} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+              <View style={styles.avatarSwipeArea} {...avatarPanResponder.panHandlers}>
+                <Image source={normalizeAvatarUri(editAvatar || user.avatar)} style={styles.editAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                <Text style={styles.avatarSwipeHint}>Swipe left/right or use buttons</Text>
+              </View>
               <Text style={styles.inputLabel}>Choose Avatar</Text>
               <View style={styles.avatarPagerRow}>
                 <PressableScale style={styles.avatarPagerBtn} onPress={() => selectRelativeAvatar(-1)} hapticType="selection">
@@ -1082,7 +1100,16 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    marginBottom: 12,
+    marginBottom: 6,
+  },
+  avatarSwipeArea: {
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 6,
+  },
+  avatarSwipeHint: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
   },
   avatarPresetGrid: {
     flexDirection: 'row',
