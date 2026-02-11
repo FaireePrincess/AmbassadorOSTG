@@ -833,7 +833,3 @@ const styles = StyleSheet.create({
     height: 90,
   },
 });
-    if (formData.thumbnail.startsWith('data:')) {
-      Alert.alert('Image Too Large', 'Please use one of the preset event images for now.');
-      return;
-    }
