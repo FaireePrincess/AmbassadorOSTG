@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { Image as ExpoImage, type ImageProps as ExpoImageProps } from 'expo-image';
-import { Image as RNImage, Platform, StyleSheet, type StyleProp, type ImageStyle } from 'react-native';
+import { Platform, StyleSheet, type StyleProp, type ImageStyle } from 'react-native';
 
 type Source = string | { uri: string } | null | undefined;
 
@@ -25,16 +25,30 @@ function resolveUri(source: Source): string | null {
 
 function StableImageImpl({ source, style, contentFit = 'cover', cachePolicy = 'memory-disk', transition = 0, testID }: StableImageProps) {
   const uri = resolveUri(source);
-  const webSource = useMemo(() => (uri ? { uri } : undefined), [uri]);
+  const flatStyle = useMemo(() => StyleSheet.flatten(style) || {}, [style]);
+  const webStyle = useMemo(() => {
+    const resolvedFit = contentFit === 'contain' ? 'contain' : 'cover';
+    return {
+      ...(flatStyle as Record<string, unknown>),
+      objectFit: resolvedFit,
+      display: 'block',
+      backfaceVisibility: 'hidden',
+      WebkitUserSelect: 'none',
+      userSelect: 'none',
+    } as React.CSSProperties;
+  }, [contentFit, flatStyle]);
   if (!uri) return null;
 
   if (Platform.OS === 'web') {
     return (
-      <RNImage
-        source={webSource}
-        style={[style, Platform.OS === 'web' && styles.webImage]}
-        resizeMode={contentFit === 'contain' ? 'contain' : 'cover'}
-        testID={testID}
+      <img
+        src={uri}
+        alt=""
+        draggable={false}
+        decoding="async"
+        loading="eager"
+        style={webStyle}
+        data-testid={testID}
       />
     );
   }
@@ -85,9 +99,3 @@ function areEqual(prev: StableImageProps, next: StableImageProps): boolean {
 const StableImage = memo(StableImageImpl, areEqual);
 
 export default StableImage;
-
-const styles = StyleSheet.create({
-  webImage: {
-    backfaceVisibility: 'hidden',
-  },
-});
