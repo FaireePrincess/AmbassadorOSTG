@@ -43,13 +43,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncCurrentUserRecord = useCallback(async (updatedUsers: User[]) => {
     if (isLoggingOutRef.current) return;
-    if (!currentUser) return;
-    const latest = updatedUsers.find((u) => u.id === currentUser.id);
+
+    const rawSession = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!rawSession) return;
+
+    let sessionUserId: string | null = null;
+    try {
+      const parsed = JSON.parse(rawSession) as { id?: string };
+      sessionUserId = parsed?.id || null;
+    } catch {
+      return;
+    }
+
+    if (!sessionUserId) return;
+    const latest = updatedUsers.find((u) => u.id === sessionUserId);
     if (!latest) return;
 
     setCurrentUser(latest);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
-  }, [currentUser]);
+  }, []);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -235,9 +247,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoggingOutRef.current = true;
     setCurrentUser(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
-    setTimeout(() => {
-      isLoggingOutRef.current = false;
-    }, 0);
+    await AsyncStorage.removeItem(USERS_STORAGE_KEY);
+    setUsers([]);
+    isLoggingOutRef.current = false;
   }, []);
 
   useEffect(() => {
