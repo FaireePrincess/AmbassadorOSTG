@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, Alert, Linking, Platform as RNPlatform } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -43,18 +43,17 @@ export default function HomeScreen() {
   }, [refreshUsers]);
 
   const fullLeaderboard = useMemo(() => {
-    const leaderboardUsers = [...users];
-    if (
-      currentUser &&
-      currentUser.role !== 'admin' &&
-      currentUser.status === 'active' &&
-      !leaderboardUsers.some((u) => u.id === currentUser.id)
-    ) {
-      leaderboardUsers.push(currentUser);
+    const leaderboardUsers = users.filter((u) => u.status === 'active');
+    if (currentUser && currentUser.status === 'active') {
+      const currentUserIndex = leaderboardUsers.findIndex((u) => u.id === currentUser.id);
+      if (currentUserIndex >= 0) {
+        leaderboardUsers[currentUserIndex] = currentUser;
+      } else {
+        leaderboardUsers.push(currentUser);
+      }
     }
 
     return leaderboardUsers
-      .filter(u => u.role !== 'admin' && u.status === 'active')
       .map(u => ({
         id: u.id,
         name: u.name,
@@ -89,7 +88,28 @@ export default function HomeScreen() {
   }, [refreshData, refreshUsers]);
 
   const openPostUrl = useCallback((url: string) => {
-    Linking.openURL(url).catch(() => {
+    const trimmed = url.trim();
+    if (!trimmed) {
+      Alert.alert('Error', 'Post link is missing');
+      return;
+    }
+
+    const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      if (typeof window !== 'undefined') {
+        const tg = (window as any).Telegram?.WebApp;
+        if (typeof tg?.openLink === 'function') {
+          tg.openLink(normalizedUrl);
+          return;
+        }
+
+        const opened = window.open(normalizedUrl, '_blank', 'noopener,noreferrer');
+        if (opened) return;
+      }
+    } catch {
+    }
+
+    Linking.openURL(normalizedUrl).catch(() => {
       Alert.alert('Error', 'Could not open link');
     });
   }, []);
@@ -215,6 +235,30 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
+
+          {RNPlatform.OS === 'web' && showLeaderboardModal && (
+            <View style={styles.inlinePanel}>
+              {fullLeaderboard.slice(0, 30).map((entry, index) => (
+                <View key={entry.id} style={[styles.leaderboardModalRow, index < 3 && styles.topThreeRow]}>
+                  <View style={styles.leaderboardLeft}>
+                    <View style={[styles.modalRankBadge, index < 3 && styles.topRankBadge]}>
+                      <Text style={[styles.modalRankText, index < 3 && styles.topRankText]}>
+                        {entry.rank}
+                      </Text>
+                    </View>
+                    <View style={styles.leaderboardUserInfo}>
+                      <Text style={styles.leaderboardName}>{entry.name}</Text>
+                      <Text style={styles.leaderboardRegion}>{entry.region}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.leaderboardRight}>
+                    <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
+                    <Text style={styles.leaderboardPosts}>{entry.posts} posts</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -247,17 +291,48 @@ export default function HomeScreen() {
                 <Text style={styles.metricDot}>•</Text>
                 <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
               </View>
-              <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(post.postUrl)}>
+              <PressableScale style={[styles.viewPostBtn, !post.postUrl && styles.viewPostBtnDisabled]} onPress={() => openPostUrl(post.postUrl)} disabled={!post.postUrl}>
                 <Text style={styles.viewPostText}>View Post</Text>
               </PressableScale>
             </View>
           ))}
+
+          {RNPlatform.OS === 'web' && showFeedModal && (
+            <View style={styles.inlinePanel}>
+              {allPosts.map((post) => (
+                <View key={post.id} style={styles.postCard}>
+                  <View style={styles.postHeader}>
+                    <Image source={normalizeAvatarUri(post.userAvatar)} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                    <View style={styles.postUserInfo}>
+                      <Text style={styles.postUserName}>{post.userName}</Text>
+                      <Text style={styles.postRegion}>{post.userRegion}</Text>
+                    </View>
+                    <PlatformBadge platform={post.platform} />
+                  </View>
+                  {post.thumbnail && (
+                    <Image source={post.thumbnail} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                  )}
+                  <Text style={styles.postContent} numberOfLines={3}>{post.content}</Text>
+                  <View style={styles.postMetrics}>
+                    <Text style={styles.metricText}>{(post.metrics.impressions / 1000).toFixed(1)}K views</Text>
+                    <Text style={styles.metricDot}>•</Text>
+                    <Text style={styles.metricText}>{post.metrics.likes} likes</Text>
+                    <Text style={styles.metricDot}>•</Text>
+                    <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
+                  </View>
+                  <PressableScale style={[styles.viewPostBtn, !post.postUrl && styles.viewPostBtnDisabled]} onPress={() => openPostUrl(post.postUrl)} disabled={!post.postUrl}>
+                    <Text style={styles.viewPostText}>View Post</Text>
+                  </PressableScale>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      <Modal
+      {RNPlatform.OS !== 'web' && <Modal
         visible={showLeaderboardModal}
         animationType="slide"
         presentationStyle="pageSheet"
@@ -298,9 +373,9 @@ export default function HomeScreen() {
             <View style={styles.modalBottomPadding} />
           </ScrollView>
         </View>
-      </Modal>
+      </Modal>}
 
-      <Modal
+      {RNPlatform.OS !== 'web' && <Modal
         visible={showFeedModal}
         animationType="slide"
         presentationStyle="pageSheet"
@@ -348,7 +423,7 @@ export default function HomeScreen() {
             <View style={styles.modalBottomPadding} />
           </ScrollView>
         </View>
-      </Modal>
+      </Modal>}
     </SafeAreaView>
   );
 }
@@ -631,10 +706,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.primary + '70',
     backgroundColor: Colors.dark.primary + '18',
   },
+  viewPostBtnDisabled: {
+    opacity: 0.5,
+  },
   viewPostText: {
     color: Colors.dark.primary,
     fontSize: 12,
     fontWeight: '700' as const,
+  },
+  inlinePanel: {
+    marginTop: 12,
   },
   metricText: {
     fontSize: 12,
