@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserPlus, Users, Shield, Clock, CheckCircle, XCircle, Copy, Mail, MapPin, X, Send, Trash2, Key, Eye, EyeOff } from 'lucide-react-native';
@@ -7,10 +7,11 @@ import * as Clipboard from 'expo-clipboard';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { regions } from '@/mocks/data';
-import { UserRole, UserStatus } from '@/types';
+import { Season, UserRole, UserStatus } from '@/types';
 import { DEFAULT_AVATAR_URI } from '@/constants/avatarPresets';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
+import { trpcClient } from '@/lib/trpc';
 
 type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 
@@ -34,6 +35,9 @@ export default function AdminScreen() {
   const [showNewPasswordReset, setShowNewPasswordReset] = useState(false);
   const [showConfirmPasswordReset, setShowConfirmPasswordReset] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [currentSeason, setCurrentSeason] = useState<Season | null>(null);
+  const [isSeasonLoading, setIsSeasonLoading] = useState(false);
+  const [isClosingSeason, setIsClosingSeason] = useState(false);
 
   const filteredUsers = users.filter(u => {
     if (u.id === currentUser?.id) return false;
@@ -41,16 +45,32 @@ export default function AdminScreen() {
     return u.status === activeTab;
   });
 
+  const loadCurrentSeason = useCallback(async () => {
+    try {
+      setIsSeasonLoading(true);
+      const season = await trpcClient.seasons.getCurrent.query();
+      setCurrentSeason(season);
+    } catch (error) {
+      console.log('[Admin] Failed to load current season:', error);
+    } finally {
+      setIsSeasonLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCurrentSeason();
+  }, [loadCurrentSeason]);
+
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await refreshUsers();
+      await Promise.all([refreshUsers(), loadCurrentSeason()]);
     } catch (error) {
       console.log('[Admin] Refresh error:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshUsers]);
+  }, [refreshUsers, loadCurrentSeason]);
 
   const handleCreateUser = useCallback(async () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
@@ -205,6 +225,46 @@ export default function AdminScreen() {
     setNewUserEmail('');
   }, []);
 
+  const handleCloseSeason = useCallback(async () => {
+    if (!currentUser?.id) {
+      Alert.alert('Error', 'Active admin session required');
+      return;
+    }
+
+    const seasonName = currentSeason?.name || 'current season';
+    Alert.alert(
+      'Close Season',
+      `Close ${seasonName} and start a new one?\n\nThis will reset all non-admin users' points and performance stats to zero. Tasks, assets, events, users, and submissions stay intact.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Close & Start New',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsClosingSeason(true);
+              const result = await trpcClient.seasons.closeAndStartNew.mutate({
+                adminUserId: currentUser.id,
+              });
+              await Promise.all([refreshUsers(), loadCurrentSeason()]);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(
+                'New Season Started',
+                `${result.newSeason.name} is now active.\nReset ${result.resetUserCount} user account(s).`
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Failed to close season';
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Error', message);
+            } finally {
+              setIsClosingSeason(false);
+            }
+          }
+        }
+      ]
+    );
+  }, [currentUser, currentSeason, refreshUsers, loadCurrentSeason]);
+
   if (!isAdmin) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -254,6 +314,30 @@ export default function AdminScreen() {
         >
           <UserPlus size={20} color="#FFF" />
           <Text style={styles.addButtonText}>Add User</Text>
+        </PressableScale>
+      </View>
+
+      <View style={styles.seasonCard}>
+        <View style={styles.seasonHeader}>
+          <Text style={styles.seasonTitle}>Season Control</Text>
+          <Text style={styles.seasonValue}>
+            {isSeasonLoading ? 'Loading...' : (currentSeason?.name || 'Season 1')}
+          </Text>
+        </View>
+        <Text style={styles.seasonMeta}>
+          {currentSeason?.startedAt
+            ? `Started ${new Date(currentSeason.startedAt).toLocaleDateString()}`
+            : 'Tracks leaderboard cycle'}
+        </Text>
+        <PressableScale
+          style={[styles.closeSeasonBtn, isClosingSeason && styles.closeSeasonBtnDisabled]}
+          onPress={handleCloseSeason}
+          disabled={isClosingSeason || isSeasonLoading}
+          hapticType="medium"
+        >
+          <Text style={styles.closeSeasonBtnText}>
+            {isClosingSeason ? 'Closing Season...' : 'Close Current Season & Start New'}
+          </Text>
         </PressableScale>
       </View>
 
@@ -665,6 +749,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFF',
+  },
+  seasonCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginHorizontal: 20,
+    marginBottom: 14,
+    padding: 14,
+  },
+  seasonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  seasonTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.dark.text,
+  },
+  seasonValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.dark.primary,
+  },
+  seasonMeta: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginBottom: 10,
+  },
+  closeSeasonBtn: {
+    backgroundColor: Colors.dark.error + '20',
+    borderWidth: 1,
+    borderColor: Colors.dark.error + '60',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  closeSeasonBtnDisabled: {
+    opacity: 0.6,
+  },
+  closeSeasonBtnText: {
+    color: Colors.dark.error,
+    fontSize: 13,
+    fontWeight: '700' as const,
   },
   tabsContainer: {
     paddingHorizontal: 20,

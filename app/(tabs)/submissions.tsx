@@ -24,7 +24,7 @@ const RATING_CRITERIA = [
 ] as const;
 
 function AdminReviewScreen() {
-  const { users } = useAuth();
+  const { users, refreshUsers } = useAuth();
   const { allSubmissions, reviewSubmission, isRefreshing, refreshData, deleteSubmission } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -160,6 +160,7 @@ function AdminReviewScreen() {
     setIsSubmitting(false);
 
     if (result.success) {
+      await refreshUsers();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsReviewModalVisible(false);
       setSelectedSubmission(null);
@@ -168,7 +169,7 @@ function AdminReviewScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', result.error || 'Failed to review submission');
     }
-  }, [selectedSubmission, ratings, engagementScore, feedback, ratingNotes, calculateTotalScore, reviewSubmission, fetchedMetrics]);
+  }, [selectedSubmission, ratings, engagementScore, feedback, ratingNotes, calculateTotalScore, reviewSubmission, fetchedMetrics, refreshUsers]);
 
   const handleDeleteSubmission = useCallback((submission: Submission) => {
     const userName = getUserName(submission.userId);

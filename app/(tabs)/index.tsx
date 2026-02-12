@@ -16,8 +16,8 @@ import PressableScale from '@/components/PressableScale';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { currentUser, users } = useAuth();
-  const { isRefreshing, refreshData, tasks, submissions, ambassadorFeed } = useApp();
+  const { currentUser, users, refreshUsers } = useAuth();
+  const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
   const backendEnabled = isBackendEnabled();
 
   const activeTasks = useMemo(() => 
@@ -39,58 +39,50 @@ export default function HomeScreen() {
   const [showFeedModal, setShowFeedModal] = useState(false);
 
   const fullLeaderboard = useMemo(() => {
-    const ambassadors = users
+    const leaderboardUsers = [...users];
+    if (
+      currentUser &&
+      currentUser.role === 'ambassador' &&
+      currentUser.status === 'active' &&
+      !leaderboardUsers.some((u) => u.id === currentUser.id)
+    ) {
+      leaderboardUsers.push(currentUser);
+    }
+
+    return leaderboardUsers
       .filter(u => u.role === 'ambassador' && u.status === 'active')
-      .map(u => {
-        const userSubmissions = submissions.filter(s => s.userId === u.id);
-        const approvedCount = userSubmissions.filter(s => s.status === 'approved').length;
-        const totalScore = userSubmissions.reduce((sum, s) => sum + (s.rating?.totalScore || 0), 0);
-        return {
-          id: u.id,
-          name: u.name,
-          region: u.region,
-          points: u.points + totalScore,
-          posts: u.stats.totalPosts + approvedCount,
-        };
-      })
+      .map(u => ({
+        id: u.id,
+        name: u.name,
+        region: u.region,
+        points: u.points,
+        posts: u.stats.totalPosts,
+      }))
       .sort((a, b) => b.points - a.points)
       .map((u, idx) => ({ ...u, rank: idx + 1 }));
-    return ambassadors;
-  }, [users, submissions]);
+  }, [users, currentUser]);
 
   const leaderboard = useMemo(() => fullLeaderboard.slice(0, 5), [fullLeaderboard]);
 
   const userRank = useMemo(() => {
     if (!currentUser) return 0;
-    const allAmbassadors = users
-      .filter(u => u.role === 'ambassador' && u.status === 'active')
-      .map(u => {
-        const userSubs = submissions.filter(s => s.userId === u.id);
-        const totalScore = userSubs.reduce((sum, s) => sum + (s.rating?.totalScore || 0), 0);
-        return { id: u.id, points: u.points + totalScore };
-      })
-      .sort((a, b) => b.points - a.points);
-    const idx = allAmbassadors.findIndex(u => u.id === currentUser.id);
+    const idx = fullLeaderboard.findIndex(u => u.id === currentUser.id);
     return idx >= 0 ? idx + 1 : 0;
-  }, [currentUser, users, submissions]);
+  }, [currentUser, fullLeaderboard]);
 
   const userStats = useMemo(() => {
     if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, points: 0 };
-    const userSubs = submissions.filter(s => s.userId === currentUser.id && s.status === 'approved');
-    const additionalScore = userSubs.reduce((sum, s) => sum + (s.rating?.totalScore || 0), 0);
-    const additionalImpressions = userSubs.reduce((sum, s) => sum + (s.metrics?.impressions || 0), 0);
-    const additionalLikes = userSubs.reduce((sum, s) => sum + (s.metrics?.likes || 0), 0);
     return {
-      totalPosts: currentUser.stats.totalPosts + userSubs.length,
-      totalImpressions: currentUser.stats.totalImpressions + additionalImpressions,
-      totalLikes: currentUser.stats.totalLikes + additionalLikes,
-      points: currentUser.points + additionalScore,
+      totalPosts: currentUser.stats.totalPosts,
+      totalImpressions: currentUser.stats.totalImpressions,
+      totalLikes: currentUser.stats.totalLikes,
+      points: currentUser.points,
     };
-  }, [currentUser, submissions]);
+  }, [currentUser]);
 
   const handleRefresh = useCallback(() => {
-    refreshData();
-  }, [refreshData]);
+    void Promise.all([refreshData(), refreshUsers()]);
+  }, [refreshData, refreshUsers]);
 
   if (!currentUser) {
     return null;

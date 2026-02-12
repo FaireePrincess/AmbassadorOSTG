@@ -15,10 +15,10 @@ import EmptyState from '@/components/EmptyState';
 import { Platform as PlatformType, Task } from '@/types';
 import ImagePicker from '@/components/ImagePicker';
 
-type FilterType = 'all' | 'twitter' | 'instagram' | 'tiktok' | 'youtube';
+type FilterType = 'all' | 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook';
 type ImageInputMode = 'upload' | 'url';
 
-const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube'];
+const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'];
 const INLINE_IMAGE_LIMIT_BYTES = 225_000;
 
 function taskDeadlineTimestamp(task: Task): number {
@@ -959,6 +959,7 @@ const styles = StyleSheet.create({
   },
   platformsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   platformOption: {

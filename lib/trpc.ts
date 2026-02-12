@@ -52,6 +52,43 @@ console.log('[tRPC] Full API URL:', `${baseUrl}/api/trpc`);
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
+const FETCH_TIMEOUT_MS = 15000;
+
+function createTimeoutSignal(
+  timeoutMs: number,
+  existingSignal?: AbortSignal | null
+): { signal?: AbortSignal; cleanup: () => void } {
+  const timeoutFn = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout;
+  if (typeof timeoutFn === 'function') {
+    return { signal: timeoutFn(timeoutMs), cleanup: () => {} };
+  }
+
+  if (typeof AbortController === 'undefined') {
+    return { signal: existingSignal || undefined, cleanup: () => {} };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const onAbort = () => controller.abort();
+  if (existingSignal) {
+    if (existingSignal.aborted) {
+      controller.abort();
+    } else {
+      existingSignal.addEventListener('abort', onAbort, { once: true });
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      if (existingSignal) {
+        existingSignal.removeEventListener('abort', onAbort);
+      }
+    },
+  };
+}
 
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
   let lastError: Error | null = null;
@@ -62,10 +99,16 @@ const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit): Pr
         throw new Error('Backend URL is not set');
       }
       console.log(`[tRPC] Fetch attempt ${attempt + 1}:`, url);
-      const response = await fetch(url, {
-        ...options,
-        signal: AbortSignal.timeout(15000),
-      });
+      const { signal, cleanup } = createTimeoutSignal(FETCH_TIMEOUT_MS, options?.signal);
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          ...options,
+          signal,
+        });
+      } finally {
+        cleanup();
+      }
       
       // Check if backend returned error page (HTML instead of JSON)
       const contentType = response.headers.get('content-type');

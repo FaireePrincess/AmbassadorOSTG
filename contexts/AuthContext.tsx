@@ -50,21 +50,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncCurrentUserRecord = useCallback(async (updatedUsers: User[]) => {
     if (isLoggingOutRef.current) return;
+    if (updatedUsers.length === 0) return;
 
     const rawSession = await AsyncStorage.getItem(STORAGE_KEY);
     if (!rawSession) return;
 
-    let sessionUserId: string | null = null;
+    let sessionUser: { id?: string; sessionVersion?: number; status?: User['status'] } | null = null;
     try {
-      const parsed = JSON.parse(rawSession) as { id?: string };
-      sessionUserId = parsed?.id || null;
+      sessionUser = JSON.parse(rawSession) as { id?: string; sessionVersion?: number; status?: User['status'] };
     } catch {
       return;
     }
 
+    const sessionUserId = sessionUser?.id || null;
     if (!sessionUserId) return;
     const latest = updatedUsers.find((u) => u.id === sessionUserId);
-    if (!latest) return;
+    const hasSessionVersionMismatch =
+      sessionUser?.sessionVersion !== undefined &&
+      (latest?.sessionVersion || 0) !== sessionUser.sessionVersion;
+
+    if (!latest || latest.status !== 'active' || hasSessionVersionMismatch) {
+      setCurrentUser(null);
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      return;
+    }
 
     setCurrentUser(latest);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
@@ -129,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       try {
         // Load users from storage
-        await loadUsers();
+        const loadedUsers = await loadUsers();
         
         // Check for existing session
         const rawUser = await AsyncStorage.getItem(STORAGE_KEY);
@@ -137,16 +146,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (rawUser) {
           try {
-            const user = JSON.parse(rawUser);
+            const user = JSON.parse(rawUser) as { id?: string; status?: User['status']; sessionVersion?: number };
+            const canValidateFromLoadedUsers = !BACKEND_ENABLED || loadedUsers.length > 0;
+            const latestUser = canValidateFromLoadedUsers && user?.id
+              ? loadedUsers.find((candidate) => candidate.id === user.id)
+              : null;
+
+            const hasSessionVersionMismatch =
+              user?.sessionVersion !== undefined &&
+              (latestUser?.sessionVersion || 0) !== user.sessionVersion;
+
+            if (canValidateFromLoadedUsers && (!latestUser || latestUser.status !== 'active' || hasSessionVersionMismatch)) {
+              setCurrentUser(null);
+              await AsyncStorage.removeItem(STORAGE_KEY);
+              return;
+            }
+
             if (user?.status === 'active') {
-              const normalizedUser = normalizeUserAvatar(user);
+              const sourceUser = latestUser || user;
+              const normalizedUser = normalizeUserAvatar(sourceUser as User);
               setCurrentUser(normalizedUser);
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
               console.log('[Auth] Restored session for:', normalizedUser.email);
             } else {
+              setCurrentUser(null);
               await AsyncStorage.removeItem(STORAGE_KEY);
             }
           } catch {
+            setCurrentUser(null);
             await AsyncStorage.removeItem(STORAGE_KEY);
           }
         }

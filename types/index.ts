@@ -1,9 +1,10 @@
-export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube';
+export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook';
 export type SubmissionStatus = 'pending' | 'approved' | 'needs_edits' | 'rejected';
 export type TaskStatus = 'active' | 'upcoming' | 'completed';
 export type EventType = 'irl' | 'online';
 export type AssetType = 'image' | 'video' | 'document' | 'template';
 export type UserRole = 'ambassador' | 'regional_lead' | 'admin';
+export type SeasonStatus = 'active' | 'closed';
 
 export type UserStatus = 'pending' | 'active' | 'suspended';
 
@@ -164,4 +165,16 @@ export interface AmbassadorPost {
     shares: number;
   };
   postedAt: string;
+}
+
+export interface Season {
+  id: string;
+  number: number;
+  name: string;
+  status: SeasonStatus;
+  startedAt: string;
+  endedAt?: string;
+  closedByUserId?: string;
+  closedByName?: string;
+  resetUserCount?: number;
 }

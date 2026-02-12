@@ -20,6 +20,7 @@ export default {
     instagram: '#E4405F',
     tiktok: '#000000',
     youtube: '#FF0000',
+    facebook: '#1877F2',
     tabBar: '#0D0D12',
     tabBarBorder: '#1E1E2A',
     tabIconDefault: '#6B7280',

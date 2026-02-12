@@ -144,7 +144,7 @@ export const submissionsRouter = createTRPCRouter({
       z.object({
         userId: z.string(),
         taskId: z.string(),
-        platform: z.enum(["twitter", "instagram", "tiktok", "youtube"]),
+        platform: z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook"]),
         postUrl: z.string(),
         screenshotUrl: z.string().optional(),
         notes: z.string().optional(),
@@ -269,7 +269,14 @@ export const submissionsRouter = createTRPCRouter({
       const limit = input?.limit || 20;
       console.log("[Submissions] Fetching ambassador feed, limit:", limit);
       const posts = await getPosts();
-      return posts.slice(0, limit).map((post) => ({
+      return [...posts]
+        .sort((a, b) => {
+          const aTs = Date.parse(a.postedAt || "");
+          const bTs = Date.parse(b.postedAt || "");
+          return (Number.isNaN(bTs) ? 0 : bTs) - (Number.isNaN(aTs) ? 0 : aTs);
+        })
+        .slice(0, limit)
+        .map((post) => ({
         ...post,
         userAvatar: sanitizeAvatar(post.userAvatar),
       }));
