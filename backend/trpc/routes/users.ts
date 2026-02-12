@@ -339,7 +339,7 @@ export const usersRouter = createTRPCRouter({
       console.log("[Users] Fetching leaderboard, limit:", limit);
       const users = await getUsers();
       const sortedUsers = [...users]
-        .filter((u) => u.role === "ambassador" && u.status === "active")
+        .filter((u) => u.role !== "admin" && u.status === "active")
         .sort((a, b) => b.points - a.points)
         .slice(0, limit)
         .map((u, i) => ({

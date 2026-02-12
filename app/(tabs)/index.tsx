@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, Alert, Linking } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -38,11 +38,15 @@ export default function HomeScreen() {
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showFeedModal, setShowFeedModal] = useState(false);
 
+  useEffect(() => {
+    void refreshUsers();
+  }, [refreshUsers]);
+
   const fullLeaderboard = useMemo(() => {
     const leaderboardUsers = [...users];
     if (
       currentUser &&
-      currentUser.role === 'ambassador' &&
+      currentUser.role !== 'admin' &&
       currentUser.status === 'active' &&
       !leaderboardUsers.some((u) => u.id === currentUser.id)
     ) {
@@ -50,7 +54,7 @@ export default function HomeScreen() {
     }
 
     return leaderboardUsers
-      .filter(u => u.role === 'ambassador' && u.status === 'active')
+      .filter(u => u.role !== 'admin' && u.status === 'active')
       .map(u => ({
         id: u.id,
         name: u.name,
@@ -83,6 +87,12 @@ export default function HomeScreen() {
   const handleRefresh = useCallback(() => {
     void Promise.all([refreshData(), refreshUsers()]);
   }, [refreshData, refreshUsers]);
+
+  const openPostUrl = useCallback((url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Could not open link');
+    });
+  }, []);
 
   if (!currentUser) {
     return null;
@@ -237,6 +247,9 @@ export default function HomeScreen() {
                 <Text style={styles.metricDot}>•</Text>
                 <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
               </View>
+              <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(post.postUrl)}>
+                <Text style={styles.viewPostText}>View Post</Text>
+              </PressableScale>
             </View>
           ))}
         </View>
@@ -327,6 +340,9 @@ export default function HomeScreen() {
                   <Text style={styles.metricDot}>•</Text>
                   <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
                 </View>
+                <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(post.postUrl)}>
+                  <Text style={styles.viewPostText}>View Post</Text>
+                </PressableScale>
               </View>
             ))}
             <View style={styles.modalBottomPadding} />
@@ -604,6 +620,21 @@ const styles = StyleSheet.create({
   postMetrics: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  viewPostBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '70',
+    backgroundColor: Colors.dark.primary + '18',
+  },
+  viewPostText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   metricText: {
     fontSize: 12,
