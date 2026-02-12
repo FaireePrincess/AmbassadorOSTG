@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { db } from "@/backend/db";
-import type { Season, User } from "@/types";
+import type { Season, Submission, Task, User } from "@/types";
 
 const COLLECTION = "seasons";
 
@@ -96,6 +96,44 @@ export const seasonsRouter = createTRPCRouter({
       );
       await Promise.all(resetOps);
 
+      const submissions = await db.getCollection<Submission>("submissions");
+      const approvedSubmissions = submissions.filter((submission) => submission.status === "approved");
+      const approvedSubmissionIds = new Set(approvedSubmissions.map((submission) => submission.id));
+      const removeApprovedOps = approvedSubmissions.map((submission) =>
+        db.remove("submissions", submission.id)
+      );
+      await Promise.all(removeApprovedOps);
+
+      const posts = await db.getCollection<{ id: string; postUrl: string }>("ambassador_posts");
+      const approvedUrls = new Set(
+        approvedSubmissions
+          .map((submission) => submission.postUrl?.trim())
+          .filter((url): url is string => !!url)
+      );
+      const removePostOps = posts
+        .filter((post) => approvedUrls.has(post.postUrl?.trim()))
+        .map((post) => db.remove("ambassador_posts", post.id));
+      await Promise.all(removePostOps);
+
+      const remainingSubmissions = submissions.filter(
+        (submission) => !approvedSubmissionIds.has(submission.id)
+      );
+      const taskSubmissionCounts = new Map<string, number>();
+      for (const submission of remainingSubmissions) {
+        taskSubmissionCounts.set(
+          submission.taskId,
+          (taskSubmissionCounts.get(submission.taskId) || 0) + 1
+        );
+      }
+
+      const tasks = await db.getCollection<Task>("tasks");
+      const updateTaskOps = tasks.map((task) =>
+        db.update<Task>("tasks", task.id, {
+          submissions: taskSubmissionCounts.get(task.id) || 0,
+        })
+      );
+      await Promise.all(updateTaskOps);
+
       const closedSeasonWithSummary: Season = {
         ...closedSeason,
         resetUserCount: usersToReset.length,
@@ -106,6 +144,7 @@ export const seasonsRouter = createTRPCRouter({
         closedSeason: closedSeasonWithSummary,
         newSeason: nextSeason,
         resetUserCount: usersToReset.length,
+        resetApprovedSubmissions: approvedSubmissions.length,
       };
     }),
 });
