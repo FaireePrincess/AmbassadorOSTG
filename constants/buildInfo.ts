@@ -1,5 +1,5 @@
-export const BUILD_MARKER = "2026-02-12-13";
-export const BUILD_COMMIT = "web-onclick-fallback";
+export const BUILD_MARKER = "2026-02-12-14";
+export const BUILD_COMMIT = "web-image-pointer-fix";
 
 export function getBuildLabel(appVersion?: string): string {
   const version = appVersion || "unknown";

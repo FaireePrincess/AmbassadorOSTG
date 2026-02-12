@@ -32,6 +32,7 @@ function StableImageImpl({ source, style, contentFit = 'cover', cachePolicy = 'm
       ...(flatStyle as Record<string, unknown>),
       objectFit: resolvedFit,
       display: 'block',
+      pointerEvents: 'none',
       backfaceVisibility: 'hidden',
       WebkitUserSelect: 'none',
       userSelect: 'none',
