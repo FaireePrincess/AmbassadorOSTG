@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 import { regions } from '@/mocks/data';
 import { Season, UserRole, UserStatus } from '@/types';
 import { DEFAULT_AVATAR_URI } from '@/constants/avatarPresets';
@@ -17,6 +18,7 @@ type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 
 export default function AdminScreen() {
   const { users, currentUser, isAdmin, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers } = useAuth();
+  const { refreshData: refreshAppData } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -64,13 +66,13 @@ export default function AdminScreen() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([refreshUsers(), loadCurrentSeason()]);
+      await Promise.all([refreshUsers(), loadCurrentSeason(), refreshAppData()]);
     } catch (error) {
       console.log('[Admin] Refresh error:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshUsers, loadCurrentSeason]);
+  }, [refreshUsers, loadCurrentSeason, refreshAppData]);
 
   const handleCreateUser = useCallback(async () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
@@ -246,7 +248,7 @@ export default function AdminScreen() {
               const result = await trpcClient.seasons.closeAndStartNew.mutate({
                 adminUserId: currentUser.id,
               });
-              await Promise.all([refreshUsers(), loadCurrentSeason()]);
+              await Promise.all([refreshUsers(), loadCurrentSeason(), refreshAppData()]);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'New Season Started',
@@ -263,7 +265,7 @@ export default function AdminScreen() {
         }
       ]
     );
-  }, [currentUser, currentSeason, refreshUsers, loadCurrentSeason]);
+  }, [currentUser, currentSeason, refreshUsers, loadCurrentSeason, refreshAppData]);
 
   if (!isAdmin) {
     return (

@@ -104,15 +104,8 @@ export const seasonsRouter = createTRPCRouter({
       );
       await Promise.all(removeApprovedOps);
 
-      const posts = await db.getCollection<{ id: string; postUrl: string }>("ambassador_posts");
-      const approvedUrls = new Set(
-        approvedSubmissions
-          .map((submission) => submission.postUrl?.trim())
-          .filter((url): url is string => !!url)
-      );
-      const removePostOps = posts
-        .filter((post) => approvedUrls.has(post.postUrl?.trim()))
-        .map((post) => db.remove("ambassador_posts", post.id));
+      const posts = await db.getCollection<{ id: string }>("ambassador_posts");
+      const removePostOps = posts.map((post) => db.remove("ambassador_posts", post.id));
       await Promise.all(removePostOps);
 
       const remainingSubmissions = submissions.filter(

@@ -77,6 +77,7 @@ export default function HomeScreen() {
 
   const userRank = useMemo(() => {
     if (!currentUser) return 0;
+    if (currentUser.points <= 0) return 0;
     const idx = fullLeaderboard.findIndex(u => u.id === currentUser.id);
     return idx >= 0 ? idx + 1 : 0;
   }, [currentUser, fullLeaderboard]);

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking, PanResponder, TouchableOpacity } from 'react-native';
 import Image from '@/components/StableImage';
 import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -233,9 +233,9 @@ export default function ProfileScreen() {
             <Text style={styles.buildLabel}>Build {buildLabel}</Text>
             
             <View style={styles.rankContainer}>
-              <View style={styles.rankBadge}>
+            <View style={styles.rankBadge}>
                 <Award size={18} color={Colors.dark.warning} />
-                <Text style={styles.rankText}>Rank #{user.rank}</Text>
+                <Text style={styles.rankText}>Rank {user.points > 0 ? `#${user.rank || '-'}` : '#-'}</Text>
               </View>
               <View style={styles.pointsBadge}>
                 <Text style={styles.pointsValue}>{user.points.toLocaleString()}</Text>
@@ -313,10 +313,10 @@ export default function ProfileScreen() {
 
         <View style={styles.tabsWrapper}>
           <View style={styles.tabsContainer}>
-            <PressableScale 
+            <TouchableOpacity 
               style={[styles.tabCard, activeTab === 'submissions' && styles.tabCardActive]}
               onPress={() => setActiveTab('submissions')}
-              hapticType="selection"
+              activeOpacity={0.85}
             >
               <View style={styles.tabCardIndicator}>
                 {activeTab === 'submissions' ? (
@@ -330,11 +330,11 @@ export default function ProfileScreen() {
                 Submissions
               </Text>
               <Text style={styles.tabCardSubtitle}>View your posts</Text>
-            </PressableScale>
-            <PressableScale 
+            </TouchableOpacity>
+            <TouchableOpacity 
               style={[styles.tabCard, activeTab === 'stats' && styles.tabCardActive]}
               onPress={() => setActiveTab('stats')}
-              hapticType="selection"
+              activeOpacity={0.85}
             >
               <View style={styles.tabCardIndicator}>
                 {activeTab === 'stats' ? (
@@ -348,7 +348,7 @@ export default function ProfileScreen() {
                 Performance
               </Text>
               <Text style={styles.tabCardSubtitle}>Stats & metrics</Text>
-            </PressableScale>
+            </TouchableOpacity>
           </View>
         </View>
 
