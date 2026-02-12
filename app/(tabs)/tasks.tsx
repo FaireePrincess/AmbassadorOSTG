@@ -20,6 +20,7 @@ type ImageInputMode = 'upload' | 'url';
 
 const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'];
 const INLINE_IMAGE_LIMIT_BYTES = 225_000;
+const TASK_IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop';
 
 function taskDeadlineTimestamp(task: Task): number {
   const deadline = task.deadline?.trim();
@@ -320,8 +321,7 @@ export default function TasksScreen() {
               <PressableScale 
                 key={task.id} 
                 style={[styles.taskCard, isSubmitted && styles.taskCardSubmitted]}
-                onPress={() => !isSubmitted && router.push(`/task/${task.id}`)}
-                disabled={isSubmitted}
+                onPress={() => router.push(`/task/${task.id}`)}
                 testID={`task-${task.id}`}
               >
                 {isSubmitted && (
@@ -332,9 +332,7 @@ export default function TasksScreen() {
                     </View>
                   </View>
                 )}
-                {task.thumbnail && (
-                  <Image source={task.thumbnail} style={styles.taskThumbnail} contentFit="cover" cachePolicy="memory-disk" transition={0} />
-                )}
+                <Image source={task.thumbnail || TASK_IMAGE_FALLBACK} style={styles.taskThumbnail} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                 <View style={styles.taskContent}>
                   <View style={styles.taskHeader}>
                     <View style={styles.taskPlatforms}>

@@ -9,7 +9,8 @@ const POSTS_COLLECTION = "ambassador_posts";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
 const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
 const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
-const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
+// Never reseed submission/feed mocks in runtime environments.
+const ENABLE_DEFAULT_SEEDING = false;
 
 function validateScreenshot(screenshotUrl?: string) {
   if (!screenshotUrl) return;

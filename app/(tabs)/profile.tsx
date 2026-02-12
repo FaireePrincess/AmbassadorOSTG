@@ -44,6 +44,12 @@ export default function ProfileScreen() {
 
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const avgEngagement = useMemo(() => {
+    const impressions = currentUser?.stats?.totalImpressions || 0;
+    if (impressions <= 0) return '0.0%';
+    const interactions = (currentUser?.stats?.totalLikes || 0) + (currentUser?.stats?.totalRetweets || 0);
+    return `${((interactions / impressions) * 100).toFixed(1)}%`;
+  }, [currentUser?.stats?.totalImpressions, currentUser?.stats?.totalLikes, currentUser?.stats?.totalRetweets]);
 
   const handleRefresh = useCallback(() => {
     refreshData();
@@ -312,44 +318,63 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.tabsWrapper}>
-          <View style={styles.tabsContainer}>
-            <TouchableOpacity 
-              style={[styles.tabCard, activeTab === 'submissions' && styles.tabCardActive]}
-              onPress={() => setActiveTab('submissions')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.tabCardIndicator}>
-                {activeTab === 'submissions' ? (
-                  <CheckCircle size={18} color={Colors.dark.primary} />
-                ) : (
-                  <Circle size={18} color={Colors.dark.textMuted} />
-                )}
-              </View>
-              <FileCheck size={22} color={activeTab === 'submissions' ? Colors.dark.primary : Colors.dark.textMuted} />
-              <Text style={[styles.tabCardTitle, activeTab === 'submissions' && styles.tabCardTitleActive]}>
-                Submissions
-              </Text>
-              <Text style={styles.tabCardSubtitle}>View your posts</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.tabCard, activeTab === 'stats' && styles.tabCardActive]}
-              onPress={() => setActiveTab('stats')}
-              activeOpacity={0.85}
-            >
-              <View style={styles.tabCardIndicator}>
-                {activeTab === 'stats' ? (
-                  <CheckCircle size={18} color={Colors.dark.primary} />
-                ) : (
-                  <Circle size={18} color={Colors.dark.textMuted} />
-                )}
-              </View>
-              <TrendingUp size={22} color={activeTab === 'stats' ? Colors.dark.primary : Colors.dark.textMuted} />
-              <Text style={[styles.tabCardTitle, activeTab === 'stats' && styles.tabCardTitleActive]}>
-                Performance
-              </Text>
-              <Text style={styles.tabCardSubtitle}>Stats & metrics</Text>
-            </TouchableOpacity>
-          </View>
+          {Platform.OS === 'web' ? (
+            <View style={styles.webTabRow}>
+              <TouchableOpacity
+                style={[styles.webTabBtn, activeTab === 'submissions' && styles.webTabBtnActive]}
+                onPress={() => setActiveTab('submissions')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.webTabText, activeTab === 'submissions' && styles.webTabTextActive]}>Submissions</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.webTabBtn, activeTab === 'stats' && styles.webTabBtnActive]}
+                onPress={() => setActiveTab('stats')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.webTabText, activeTab === 'stats' && styles.webTabTextActive]}>Performance</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.tabsContainer}>
+              <TouchableOpacity 
+                style={[styles.tabCard, activeTab === 'submissions' && styles.tabCardActive]}
+                onPress={() => setActiveTab('submissions')}
+                activeOpacity={0.85}
+              >
+                <View style={styles.tabCardIndicator}>
+                  {activeTab === 'submissions' ? (
+                    <CheckCircle size={18} color={Colors.dark.primary} />
+                  ) : (
+                    <Circle size={18} color={Colors.dark.textMuted} />
+                  )}
+                </View>
+                <FileCheck size={22} color={activeTab === 'submissions' ? Colors.dark.primary : Colors.dark.textMuted} />
+                <Text style={[styles.tabCardTitle, activeTab === 'submissions' && styles.tabCardTitleActive]}>
+                  Submissions
+                </Text>
+                <Text style={styles.tabCardSubtitle}>View your posts</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.tabCard, activeTab === 'stats' && styles.tabCardActive]}
+                onPress={() => setActiveTab('stats')}
+                activeOpacity={0.85}
+              >
+                <View style={styles.tabCardIndicator}>
+                  {activeTab === 'stats' ? (
+                    <CheckCircle size={18} color={Colors.dark.primary} />
+                  ) : (
+                    <Circle size={18} color={Colors.dark.textMuted} />
+                  )}
+                </View>
+                <TrendingUp size={22} color={activeTab === 'stats' ? Colors.dark.primary : Colors.dark.textMuted} />
+                <Text style={[styles.tabCardTitle, activeTab === 'stats' && styles.tabCardTitleActive]}>
+                  Performance
+                </Text>
+                <Text style={styles.tabCardSubtitle}>Stats & metrics</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {activeTab === 'submissions' ? (
@@ -446,7 +471,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statsGrid}>
               <StatCard label="Retweets" value={user.stats.totalRetweets} color={Colors.dark.warning} />
-              <StatCard label="Avg Engagement" value="3.2%" color={Colors.dark.error} />
+              <StatCard label="Avg Engagement" value={avgEngagement} color={Colors.dark.error} />
             </View>
             
             <View style={styles.memberSince}>
@@ -897,6 +922,31 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
     gap: 12,
+  },
+  webTabRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  webTabBtn: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  webTabBtnActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
+  },
+  webTabText: {
+    color: Colors.dark.textMuted,
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  webTabTextActive: {
+    color: Colors.dark.primary,
   },
   tabCard: {
     flex: 1,
