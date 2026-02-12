@@ -320,20 +320,20 @@ export default function ProfileScreen() {
         <View style={styles.tabsWrapper}>
           {Platform.OS === 'web' ? (
             <View style={styles.webTabRow}>
-              <TouchableOpacity
+              <PressableScale
                 style={[styles.webTabBtn, activeTab === 'submissions' && styles.webTabBtnActive]}
                 onPress={() => setActiveTab('submissions')}
-                activeOpacity={0.85}
+                haptic={false}
               >
                 <Text style={[styles.webTabText, activeTab === 'submissions' && styles.webTabTextActive]}>Submissions</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={[styles.webTabBtn, activeTab === 'stats' && styles.webTabBtnActive]}
                 onPress={() => setActiveTab('stats')}
-                activeOpacity={0.85}
+                haptic={false}
               >
                 <Text style={[styles.webTabText, activeTab === 'stats' && styles.webTabTextActive]}>Performance</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           ) : (
             <View style={styles.tabsContainer}>
