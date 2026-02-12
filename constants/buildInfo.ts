@@ -1,5 +1,5 @@
-export const BUILD_MARKER = "2026-02-12-11";
-export const BUILD_COMMIT = "web-click-reliability";
+export const BUILD_MARKER = "2026-02-12-12";
+export const BUILD_COMMIT = "web-click-hotfix";
 
 export function getBuildLabel(appVersion?: string): string {
   const version = appVersion || "unknown";
