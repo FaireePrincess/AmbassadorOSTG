@@ -11,6 +11,7 @@ const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&bac
 const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
 // Never reseed submission/feed mocks in runtime environments.
 const ENABLE_DEFAULT_SEEDING = false;
+const LEGACY_MOCK_POST_IDS = new Set(initialPosts.map((post) => post.id));
 
 function validateScreenshot(screenshotUrl?: string) {
   if (!screenshotUrl) return;
@@ -68,8 +69,19 @@ async function getPosts(): Promise<AmbassadorPost[]> {
   }
   await postsInitPromise;
   const posts = await db.getCollection<AmbassadorPost>(POSTS_COLLECTION);
-  console.log("[Posts] Read from DB, count:", posts.length);
-  return posts;
+
+  // One-time cleanup: remove legacy seeded mock posts from previous builds.
+  const legacyMockPosts = posts.filter((post) => LEGACY_MOCK_POST_IDS.has(post.id));
+  if (legacyMockPosts.length > 0) {
+    await Promise.all(legacyMockPosts.map((post) => db.remove(POSTS_COLLECTION, post.id)));
+  }
+
+  const livePosts =
+    legacyMockPosts.length > 0
+      ? posts.filter((post) => !LEGACY_MOCK_POST_IDS.has(post.id))
+      : posts;
+  console.log("[Posts] Read from DB, count:", livePosts.length);
+  return livePosts;
 }
 
 async function getTaskInfo(taskId: string): Promise<{ title: string; campaignTitle: string }> {
