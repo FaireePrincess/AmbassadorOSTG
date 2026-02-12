@@ -80,7 +80,7 @@ export const seasonsRouter = createTRPCRouter({
       };
       await db.create<Season>(COLLECTION, nextSeason);
 
-      const usersToReset = users.filter((user) => user.role !== "admin");
+      const usersToReset = users;
       const resetOps = usersToReset.map((user) =>
         db.update<User>("users", user.id, {
           points: 0,

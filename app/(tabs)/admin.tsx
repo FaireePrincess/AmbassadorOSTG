@@ -234,7 +234,7 @@ export default function AdminScreen() {
     const seasonName = currentSeason?.name || 'current season';
     Alert.alert(
       'Close Season',
-      `Close ${seasonName} and start a new one?\n\nThis will:\n• Reset all non-admin users' points and performance stats to zero\n• Clear approved submissions\n• Keep pending and needs_edits submissions\n• Keep tasks, assets, events, and users`,
+      `Close ${seasonName} and start a new one?\n\nThis will:\n• Reset all users' points and performance stats to zero\n• Clear approved submissions\n• Keep pending and needs_edits submissions\n• Keep tasks, assets, events, and users`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
