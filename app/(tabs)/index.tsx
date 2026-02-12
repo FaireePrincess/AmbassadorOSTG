@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -216,10 +216,10 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Leaderboard</Text>
-            <PressableScale style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)}>
+            <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)} activeOpacity={0.8}>
               <Text style={styles.seeAllText}>{showLeaderboardExpanded ? 'Top 5' : 'Full Board'}</Text>
               <ChevronRight size={16} color={Colors.dark.primary} />
-            </PressableScale>
+            </TouchableOpacity>
           </View>
           
           <View style={styles.leaderboardCard}>
@@ -248,10 +248,10 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ambassador Feed</Text>
-            <PressableScale style={styles.seeAllBtn} onPress={() => setShowFeedExpanded((prev) => !prev)}>
+            <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowFeedExpanded((prev) => !prev)} activeOpacity={0.8}>
               <Text style={styles.seeAllText}>{showFeedExpanded ? 'Show Less' : 'See All'}</Text>
               <ChevronRight size={16} color={Colors.dark.primary} />
-            </PressableScale>
+            </TouchableOpacity>
           </View>
           
           {feedRows.map((post) => (
