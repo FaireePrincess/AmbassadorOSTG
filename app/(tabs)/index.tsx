@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, Alert, Linki
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award, Zap, X, Trophy } from 'lucide-react-native';
+import { ChevronRight, Award, Zap, X } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp } from '@/contexts/AppContext';
@@ -35,7 +35,7 @@ export default function HomeScreen() {
   const topPosts = feedPosts.slice(0, 2);
   const allPosts = feedPosts.slice(0, 20);
 
-  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const [showLeaderboardExpanded, setShowLeaderboardExpanded] = useState(false);
   const [showFeedModal, setShowFeedModal] = useState(false);
 
   useEffect(() => {
@@ -66,6 +66,10 @@ export default function HomeScreen() {
   }, [users, currentUser]);
 
   const leaderboard = useMemo(() => fullLeaderboard.slice(0, 5), [fullLeaderboard]);
+  const leaderboardRows = useMemo(
+    () => (showLeaderboardExpanded ? fullLeaderboard : leaderboard),
+    [showLeaderboardExpanded, fullLeaderboard, leaderboard]
+  );
 
   const userRank = useMemo(() => {
     if (!currentUser) return 0;
@@ -208,15 +212,15 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Leaderboard</Text>
-            <PressableScale style={styles.seeAllBtn} onPress={() => setShowLeaderboardModal(true)}>
-              <Text style={styles.seeAllText}>Full Board</Text>
+            <PressableScale style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)}>
+              <Text style={styles.seeAllText}>{showLeaderboardExpanded ? 'Top 5' : 'Full Board'}</Text>
               <ChevronRight size={16} color={Colors.dark.primary} />
             </PressableScale>
           </View>
           
           <View style={styles.leaderboardCard}>
-            {leaderboard.map((entry, index) => (
-              <View key={entry.id} style={[styles.leaderboardRow, index !== leaderboard.length - 1 && styles.leaderboardRowBorder]}>
+            {leaderboardRows.map((entry, index) => (
+              <View key={entry.id} style={[styles.leaderboardRow, index !== leaderboardRows.length - 1 && styles.leaderboardRowBorder]}>
                 <View style={styles.leaderboardLeft}>
                   <View style={[styles.rankBadge, index < 3 && styles.topRankBadge]}>
                     <Text style={[styles.rankBadgeText, index < 3 && styles.topRankText]}>
@@ -235,30 +239,6 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
-
-          {RNPlatform.OS === 'web' && showLeaderboardModal && (
-            <View style={styles.inlinePanel}>
-              {fullLeaderboard.slice(0, 30).map((entry, index) => (
-                <View key={entry.id} style={[styles.leaderboardModalRow, index < 3 && styles.topThreeRow]}>
-                  <View style={styles.leaderboardLeft}>
-                    <View style={[styles.modalRankBadge, index < 3 && styles.topRankBadge]}>
-                      <Text style={[styles.modalRankText, index < 3 && styles.topRankText]}>
-                        {entry.rank}
-                      </Text>
-                    </View>
-                    <View style={styles.leaderboardUserInfo}>
-                      <Text style={styles.leaderboardName}>{entry.name}</Text>
-                      <Text style={styles.leaderboardRegion}>{entry.region}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.leaderboardRight}>
-                    <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
-                    <Text style={styles.leaderboardPosts}>{entry.posts} posts</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={styles.section}>
@@ -331,49 +311,6 @@ export default function HomeScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      {RNPlatform.OS !== 'web' && <Modal
-        visible={showLeaderboardModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowLeaderboardModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <PressableScale onPress={() => setShowLeaderboardModal(false)}>
-              <X size={24} color={Colors.dark.text} />
-            </PressableScale>
-            <View style={styles.modalTitleContainer}>
-              <Trophy size={20} color={Colors.dark.warning} />
-              <Text style={styles.modalTitle}>Leaderboard</Text>
-            </View>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {fullLeaderboard.slice(0, 10).map((entry, index) => (
-              <View key={entry.id} style={[styles.leaderboardModalRow, index < 3 && styles.topThreeRow]}>
-                <View style={styles.leaderboardLeft}>
-                  <View style={[styles.modalRankBadge, index < 3 && styles.topRankBadge]}>
-                    <Text style={[styles.modalRankText, index < 3 && styles.topRankText]}>
-                      {entry.rank}
-                    </Text>
-                  </View>
-                  <View style={styles.leaderboardUserInfo}>
-                    <Text style={styles.leaderboardName}>{entry.name}</Text>
-                    <Text style={styles.leaderboardRegion}>{entry.region}</Text>
-                  </View>
-                </View>
-                <View style={styles.leaderboardRight}>
-                  <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
-                  <Text style={styles.leaderboardPosts}>{entry.posts} posts</Text>
-                </View>
-              </View>
-            ))}
-            <View style={styles.modalBottomPadding} />
-          </ScrollView>
-        </View>
-      </Modal>}
 
       {RNPlatform.OS !== 'web' && <Modal
         visible={showFeedModal}
