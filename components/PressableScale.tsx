@@ -1,5 +1,5 @@
 import React, { useRef, useCallback } from 'react';
-import { Animated, TouchableOpacity, TouchableOpacityProps, Platform } from 'react-native';
+import { Animated, TouchableOpacity, TouchableOpacityProps, Platform, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 interface PressableScaleProps extends TouchableOpacityProps {
@@ -68,14 +68,15 @@ export default function PressableScale({
 
   return (
     Platform.OS === 'web' ? (
-      <TouchableOpacity
-        style={style}
+      <Pressable
+        style={style as any}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
         onPress={handlePress}
-        activeOpacity={1}
         {...props}
       >
         {children}
-      </TouchableOpacity>
+      </Pressable>
     ) : (
       <Animated.View style={[{ transform: [{ scale: scaleValue }] }]}>
         <TouchableOpacity

@@ -325,7 +325,7 @@ export default function TasksScreen() {
                 testID={`task-${task.id}`}
               >
                 {isSubmitted && (
-                  <View style={styles.submittedOverlay}>
+                  <View style={styles.submittedOverlay} pointerEvents="none">
                     <View style={styles.submittedBadge}>
                       <CheckCircle2 size={16} color={Colors.dark.success} />
                       <Text style={styles.submittedText}>Submitted</Text>

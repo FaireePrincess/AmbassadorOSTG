@@ -926,6 +926,8 @@ const styles = StyleSheet.create({
   webTabRow: {
     flexDirection: 'row',
     gap: 10,
+    position: 'relative',
+    zIndex: 5,
   },
   webTabBtn: {
     flex: 1,
