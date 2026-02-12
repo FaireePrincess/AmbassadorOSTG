@@ -42,6 +42,13 @@ export default function PressableScale({
   }, [onPressOut, scaleValue]);
 
   const handlePress = useCallback((e: any) => {
+    // On web, trigger action immediately to preserve browser user-gesture semantics
+    // for window.open/link navigation.
+    if (Platform.OS === 'web') {
+      onPress?.(e);
+      return;
+    }
+
     if (haptic) {
       const hapticMap = {
         light: Haptics.ImpactFeedbackStyle.Light,

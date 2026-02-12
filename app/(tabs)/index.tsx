@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal, Alert, Linking, Platform as RNPlatform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award, Zap, X } from 'lucide-react-native';
+import { ChevronRight, Award, Zap } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp } from '@/contexts/AppContext';
@@ -36,7 +36,7 @@ export default function HomeScreen() {
   const allPosts = feedPosts.slice(0, 20);
 
   const [showLeaderboardExpanded, setShowLeaderboardExpanded] = useState(false);
-  const [showFeedModal, setShowFeedModal] = useState(false);
+  const [showFeedExpanded, setShowFeedExpanded] = useState(false);
 
   useEffect(() => {
     void refreshUsers();
@@ -69,6 +69,10 @@ export default function HomeScreen() {
   const leaderboardRows = useMemo(
     () => (showLeaderboardExpanded ? fullLeaderboard : leaderboard),
     [showLeaderboardExpanded, fullLeaderboard, leaderboard]
+  );
+  const feedRows = useMemo(
+    () => (showFeedExpanded ? allPosts : topPosts),
+    [showFeedExpanded, allPosts, topPosts]
   );
 
   const userRank = useMemo(() => {
@@ -244,13 +248,13 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ambassador Feed</Text>
-            <PressableScale style={styles.seeAllBtn} onPress={() => setShowFeedModal(true)}>
-              <Text style={styles.seeAllText}>See All</Text>
+            <PressableScale style={styles.seeAllBtn} onPress={() => setShowFeedExpanded((prev) => !prev)}>
+              <Text style={styles.seeAllText}>{showFeedExpanded ? 'Show Less' : 'See All'}</Text>
               <ChevronRight size={16} color={Colors.dark.primary} />
             </PressableScale>
           </View>
           
-          {topPosts.map((post) => (
+          {feedRows.map((post) => (
             <View key={post.id} style={styles.postCard}>
               <View style={styles.postHeader}>
                 <Image source={normalizeAvatarUri(post.userAvatar)} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
@@ -276,91 +280,11 @@ export default function HomeScreen() {
               </PressableScale>
             </View>
           ))}
-
-          {RNPlatform.OS === 'web' && showFeedModal && (
-            <View style={styles.inlinePanel}>
-              {allPosts.map((post) => (
-                <View key={post.id} style={styles.postCard}>
-                  <View style={styles.postHeader}>
-                    <Image source={normalizeAvatarUri(post.userAvatar)} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
-                    <View style={styles.postUserInfo}>
-                      <Text style={styles.postUserName}>{post.userName}</Text>
-                      <Text style={styles.postRegion}>{post.userRegion}</Text>
-                    </View>
-                    <PlatformBadge platform={post.platform} />
-                  </View>
-                  {post.thumbnail && (
-                    <Image source={post.thumbnail} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
-                  )}
-                  <Text style={styles.postContent} numberOfLines={3}>{post.content}</Text>
-                  <View style={styles.postMetrics}>
-                    <Text style={styles.metricText}>{(post.metrics.impressions / 1000).toFixed(1)}K views</Text>
-                    <Text style={styles.metricDot}>•</Text>
-                    <Text style={styles.metricText}>{post.metrics.likes} likes</Text>
-                    <Text style={styles.metricDot}>•</Text>
-                    <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
-                  </View>
-                  <PressableScale style={[styles.viewPostBtn, !post.postUrl && styles.viewPostBtnDisabled]} onPress={() => openPostUrl(post.postUrl)} disabled={!post.postUrl}>
-                    <Text style={styles.viewPostText}>View Post</Text>
-                  </PressableScale>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {RNPlatform.OS !== 'web' && <Modal
-        visible={showFeedModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowFeedModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <PressableScale onPress={() => setShowFeedModal(false)}>
-              <X size={24} color={Colors.dark.text} />
-            </PressableScale>
-            <View style={styles.modalTitleContainer}>
-              <Zap size={20} color={Colors.dark.primary} />
-              <Text style={styles.modalTitle}>Ambassador Feed</Text>
-            </View>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {allPosts.map((post) => (
-              <View key={post.id} style={styles.postCard}>
-                <View style={styles.postHeader}>
-                  <Image source={normalizeAvatarUri(post.userAvatar)} style={styles.postAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
-                  <View style={styles.postUserInfo}>
-                    <Text style={styles.postUserName}>{post.userName}</Text>
-                    <Text style={styles.postRegion}>{post.userRegion}</Text>
-                  </View>
-                  <PlatformBadge platform={post.platform} />
-                </View>
-                {post.thumbnail && (
-                  <Image source={post.thumbnail} style={styles.postImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
-                )}
-                <Text style={styles.postContent} numberOfLines={3}>{post.content}</Text>
-                <View style={styles.postMetrics}>
-                  <Text style={styles.metricText}>{(post.metrics.impressions / 1000).toFixed(1)}K views</Text>
-                  <Text style={styles.metricDot}>•</Text>
-                  <Text style={styles.metricText}>{post.metrics.likes} likes</Text>
-                  <Text style={styles.metricDot}>•</Text>
-                  <Text style={styles.metricText}>{post.metrics.shares} shares</Text>
-                </View>
-                <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(post.postUrl)}>
-                  <Text style={styles.viewPostText}>View Post</Text>
-                </PressableScale>
-              </View>
-            ))}
-            <View style={styles.modalBottomPadding} />
-          </ScrollView>
-        </View>
-      </Modal>}
     </SafeAreaView>
   );
 }
