@@ -106,6 +106,14 @@ async function getUserInfo(userId: string): Promise<User | null> {
   }
 }
 
+function getCompletedTaskCountForUser(submissions: Submission[], userId: string): number {
+  return new Set(
+    submissions
+      .filter((submission) => submission.userId === userId && submission.status === "approved")
+      .map((submission) => submission.taskId)
+  ).size;
+}
+
 const ratingSchema = z.object({
   relevanceToTask: z.number().min(0).max(25),
   creativity: z.number().min(0).max(15),
@@ -193,6 +201,50 @@ export const submissionsRouter = createTRPCRouter({
       return newSubmission;
     }),
 
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        userId: z.string(),
+        platform: z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook"]),
+        postUrl: z.string(),
+        screenshotUrl: z.string().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      validateScreenshot(input.screenshotUrl);
+      const submissions = await getSubmissions();
+      const existing = submissions.find((submission) => submission.id === input.id);
+      if (!existing) {
+        throw new Error("Submission not found");
+      }
+      if (existing.userId !== input.userId) {
+        throw new Error("You can only edit your own submission");
+      }
+      if (existing.status !== "pending" && existing.status !== "needs_edits") {
+        throw new Error("Approved or rejected submissions cannot be edited");
+      }
+
+      const updatedSubmission: Submission = {
+        ...existing,
+        platform: input.platform as Platform,
+        postUrl: input.postUrl,
+        screenshotUrl: input.screenshotUrl,
+        notes: input.notes,
+        status: "pending",
+        feedback: undefined,
+        rating: undefined,
+        reviewedAt: undefined,
+        submittedAt: new Date().toISOString(),
+      };
+
+      await db.update<Submission>(SUBMISSIONS_COLLECTION, input.id, updatedSubmission);
+
+      console.log("[Submissions] Updated submission:", input.id);
+      return updatedSubmission;
+    }),
+
   review: publicProcedure
     .input(
       z.object({
@@ -225,20 +277,22 @@ export const submissionsRouter = createTRPCRouter({
       };
       
       await db.update(SUBMISSIONS_COLLECTION, input.id, updatedSubmission);
+      const latestSubmissions = await getSubmissions();
 
       const wasApproved = submission.status === "approved";
       const isNowApproved = input.status === "approved";
-      if (!wasApproved && isNowApproved) {
-        const user = await getUserInfo(submission.userId);
-        if (user) {
-          const approvedMetrics = input.metrics || submission.metrics || {
-            impressions: 0,
-            likes: 0,
-            comments: 0,
-            shares: 0,
-          };
-          const approvedScore = input.rating?.totalScore || 0;
+      const user = await getUserInfo(submission.userId);
+      if (user) {
+        const approvedMetrics = input.metrics || submission.metrics || {
+          impressions: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+        };
+        const approvedScore = input.rating?.totalScore || 0;
+        const completedTasks = getCompletedTaskCountForUser(latestSubmissions, submission.userId);
 
+        if (!wasApproved && isNowApproved) {
           await db.update<User>("users", user.id, {
             points: user.points + approvedScore,
             stats: {
@@ -247,7 +301,7 @@ export const submissionsRouter = createTRPCRouter({
               totalImpressions: user.stats.totalImpressions + approvedMetrics.impressions,
               totalLikes: user.stats.totalLikes + approvedMetrics.likes,
               totalRetweets: user.stats.totalRetweets + approvedMetrics.shares,
-              completedTasks: user.stats.completedTasks + 1,
+              completedTasks,
             },
           });
 
@@ -269,6 +323,13 @@ export const submissionsRouter = createTRPCRouter({
           await db.create(POSTS_COLLECTION, newPost);
           
           console.log("[Submissions] Added to ambassador feed:", newPost.id);
+        } else {
+          await db.update<User>("users", user.id, {
+            stats: {
+              ...user.stats,
+              completedTasks,
+            },
+          });
         }
       }
 

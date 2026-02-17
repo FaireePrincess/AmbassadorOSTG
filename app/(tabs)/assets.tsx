@@ -333,7 +333,7 @@ export default function AssetsScreen() {
 
   if (activeFolder && activeFolderConfig) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <View style={styles.folderHeader}>
             <PressableScale style={styles.backBtn} onPress={goBack} hapticType="light">
@@ -662,7 +662,7 @@ export default function AssetsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>

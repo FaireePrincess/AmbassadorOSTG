@@ -31,6 +31,7 @@ export default function TabLayout() {
           borderTopColor: Colors.dark.tabBarBorder,
           borderTopWidth: 1,
           paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
           height: Platform.OS === 'ios' ? 88 : 68,
         },
         tabBarLabelStyle: {
@@ -81,7 +82,7 @@ export default function TabLayout() {
         options={{
           title: 'Review',
           tabBarIcon: ({ color, size }) => <FileCheck size={size} color={color} />,
-          href: isAdmin ? '/submissions' : null,
+          href: isAdmin ? '/(tabs)/submissions' : null,
         }}
       />
       <Tabs.Screen
@@ -89,7 +90,7 @@ export default function TabLayout() {
         options={{
           title: 'Admin',
           tabBarIcon: ({ color, size }) => <Shield size={size} color={color} />,
-          href: isAdmin ? '/admin' : null,
+          href: isAdmin ? '/(tabs)/admin' : null,
         }}
       />
     </Tabs>

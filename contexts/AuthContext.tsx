@@ -7,6 +7,7 @@ import { DEFAULT_AVATAR_URI, normalizeAvatarUri } from '@/constants/avatarPreset
 
 const STORAGE_KEY = 'auth_user';
 const USERS_STORAGE_KEY = 'app_users';
+const ACTIVATION_SOCIAL_SETUP_KEY = 'activation_social_setup_user_id';
 const BACKEND_ENABLED = isBackendEnabled();
 
 interface AuthContextType {
@@ -15,6 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isAdmin: boolean;
+  requiresSocialSetup: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   activateAccount: (email: string, inviteCode: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -29,6 +31,7 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; error?: string }>;
   changePassword: (userId: string, newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsers: () => Promise<void>;
+  markSocialSetupComplete: () => Promise<void>;
   clearStorage: () => Promise<void>;
 }
 
@@ -42,10 +45,22 @@ function normalizeUsers(list: User[]): User[] {
   return list.map(normalizeUserAvatar);
 }
 
+function hasAtLeastOneSocial(user: User | null): boolean {
+  if (!user) return false;
+  return Boolean(
+    user.handles?.twitter ||
+      user.handles?.instagram ||
+      user.handles?.tiktok ||
+      user.handles?.youtube ||
+      user.handles?.discord
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [requiresSocialSetup, setRequiresSocialSetup] = useState(false);
   const isLoggingOutRef = useRef(false);
 
   const syncCurrentUserRecord = useCallback(async (updatedUsers: User[]) => {
@@ -71,12 +86,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!latest || latest.status !== 'active' || hasSessionVersionMismatch) {
       setCurrentUser(null);
+      setRequiresSocialSetup(false);
       await AsyncStorage.removeItem(STORAGE_KEY);
       return;
     }
 
     setCurrentUser(latest);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+    const activationSetupUserId = await AsyncStorage.getItem(ACTIVATION_SOCIAL_SETUP_KEY);
+    const mustComplete = activationSetupUserId === latest.id && !hasAtLeastOneSocial(latest);
+    setRequiresSocialSetup(mustComplete);
+    if (!mustComplete && activationSetupUserId) {
+      await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
+    }
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -113,14 +135,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return parsed;
         }
         // In backend mode, never silently fall back to mock users when backend is temporarily unavailable.
-        return users;
+        return [];
       }
       const normalizedMockUsers = normalizeUsers(mockUsers);
       setUsers(normalizedMockUsers);
       await syncCurrentUserRecord(normalizedMockUsers);
       return normalizedMockUsers;
     }
-  }, [syncCurrentUserRecord, users]);
+  }, [syncCurrentUserRecord]);
 
   const saveUsers = useCallback(async (updatedUsers: User[]) => {
     try {
@@ -158,22 +180,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (canValidateFromLoadedUsers && (!latestUser || latestUser.status !== 'active' || hasSessionVersionMismatch)) {
               setCurrentUser(null);
+              setRequiresSocialSetup(false);
               await AsyncStorage.removeItem(STORAGE_KEY);
               return;
             }
 
             if (user?.status === 'active') {
-              const sourceUser = latestUser || user;
+              let sourceUser = latestUser || (user as User);
+              if (BACKEND_ENABLED && user?.id) {
+                try {
+                  const backendUser = await trpcClient.users.getById.query({ id: user.id });
+                  sourceUser = normalizeUserAvatar(backendUser);
+                } catch (backendUserError) {
+                  console.log('[Auth] Failed to fetch fresh session user from backend:', backendUserError);
+                }
+              }
               const normalizedUser = normalizeUserAvatar(sourceUser as User);
               setCurrentUser(normalizedUser);
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
+              const activationSetupUserId = await AsyncStorage.getItem(ACTIVATION_SOCIAL_SETUP_KEY);
+              const mustComplete = activationSetupUserId === normalizedUser.id && !hasAtLeastOneSocial(normalizedUser);
+              setRequiresSocialSetup(mustComplete);
+              if (!mustComplete && activationSetupUserId) {
+                await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
+              }
               console.log('[Auth] Restored session for:', normalizedUser.email);
             } else {
               setCurrentUser(null);
+              setRequiresSocialSetup(false);
               await AsyncStorage.removeItem(STORAGE_KEY);
             }
           } catch {
             setCurrentUser(null);
+            setRequiresSocialSetup(false);
             await AsyncStorage.removeItem(STORAGE_KEY);
           }
         }
@@ -197,6 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('[Auth] Login successful (backend):', user.name);
         setCurrentUser(user);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        const activationSetupUserId = await AsyncStorage.getItem(ACTIVATION_SOCIAL_SETUP_KEY);
+        const mustComplete = activationSetupUserId === user.id && !hasAtLeastOneSocial(user);
+        setRequiresSocialSetup(mustComplete);
         await loadUsers();
         return { success: true };
       } catch (error) {
@@ -234,6 +276,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedUser = normalizeUserAvatar(user);
     setCurrentUser(normalizedUser);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
+    const activationSetupUserId = await AsyncStorage.getItem(ACTIVATION_SOCIAL_SETUP_KEY);
+    const mustComplete = activationSetupUserId === normalizedUser.id && !hasAtLeastOneSocial(normalizedUser);
+    setRequiresSocialSetup(mustComplete);
     return { success: true };
   }, [loadUsers]);
 
@@ -243,6 +288,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const activatedUser = normalizeUserAvatar(await trpcClient.users.activate.mutate({ email, inviteCode, password }));
         setCurrentUser(activatedUser);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activatedUser));
+        await AsyncStorage.setItem(ACTIVATION_SOCIAL_SETUP_KEY, activatedUser.id);
+        setRequiresSocialSetup(!hasAtLeastOneSocial(activatedUser));
         await loadUsers();
         return { success: true };
       } catch (error) {
@@ -282,6 +329,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     setCurrentUser(activatedUser);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activatedUser));
+    await AsyncStorage.setItem(ACTIVATION_SOCIAL_SETUP_KEY, activatedUser.id);
+    setRequiresSocialSetup(!hasAtLeastOneSocial(activatedUser));
     
     return { success: true };
   }, [saveUsers, loadUsers]);
@@ -289,6 +338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     isLoggingOutRef.current = true;
     setCurrentUser(null);
+    setRequiresSocialSetup(false);
     await AsyncStorage.removeItem(STORAGE_KEY);
     isLoggingOutRef.current = false;
   }, []);
@@ -457,6 +507,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const normalizedUpdated = normalizeUserAvatar(updated);
         setCurrentUser(normalizedUpdated);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUpdated));
+        if (hasAtLeastOneSocial(normalizedUpdated)) {
+          await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
+          setRequiresSocialSetup(false);
+        }
         await loadUsers();
         return { success: true };
       } catch (error) {
@@ -483,6 +537,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveUsers(currentUsers);
     setCurrentUser(updatedUser);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+    if (hasAtLeastOneSocial(updatedUser)) {
+      await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
+      setRequiresSocialSetup(false);
+    }
     return { success: true };
   }, [currentUser, loadUsers, saveUsers]);
 
@@ -544,10 +602,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadUsers();
   }, [loadUsers]);
 
+  const markSocialSetupComplete = useCallback(async () => {
+    await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
+    setRequiresSocialSetup(false);
+  }, []);
+
   const clearStorage = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     await AsyncStorage.removeItem(USERS_STORAGE_KEY);
+    await AsyncStorage.removeItem(ACTIVATION_SOCIAL_SETUP_KEY);
     setCurrentUser(null);
+    setRequiresSocialSetup(false);
     setUsers(normalizeUsers(mockUsers));
   }, []);
 
@@ -560,6 +625,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated,
     isLoading,
     isAdmin,
+    requiresSocialSetup,
     login,
     logout,
     activateAccount,
@@ -569,8 +635,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateProfile,
     changePassword,
     refreshUsers,
+    markSocialSetupComplete,
     clearStorage,
-  }), [currentUser, users, isAuthenticated, isLoading, isAdmin, login, logout, activateAccount, createUser, updateUserStatus, deleteUser, updateProfile, changePassword, refreshUsers, clearStorage]);
+  }), [currentUser, users, isAuthenticated, isLoading, isAdmin, requiresSocialSetup, login, logout, activateAccount, createUser, updateUserStatus, deleteUser, updateProfile, changePassword, refreshUsers, markSocialSetupComplete, clearStorage]);
 
   return (
     <AuthContext.Provider value={value}>

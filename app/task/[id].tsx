@@ -9,13 +9,14 @@ import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
+import LoadingScreen from '@/components/LoadingScreen';
 import { Platform as PlatformType, Submission } from '@/types';
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { addSubmission, tasks, assets, hasUserSubmittedTask } = useApp();
-  const { currentUser } = useAuth();
+  const { currentUser, requiresSocialSetup } = useAuth();
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformType | null>(null);
   const [postUrl, setPostUrl] = useState('');
@@ -26,9 +27,29 @@ export default function TaskDetailScreen() {
   const relatedAssets = task ? assets.filter(a => task.assetIds?.includes(a.id) || a.campaignId === task.campaignId) : [];
   const daysLeft = task ? Math.ceil((new Date(task.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
   const hasAlreadySubmitted = currentUser && task ? hasUserSubmittedTask(currentUser.id, task.id) : false;
+  const hasSocialAccount = Boolean(
+    currentUser?.handles?.twitter ||
+      currentUser?.handles?.instagram ||
+      currentUser?.handles?.tiktok ||
+      currentUser?.handles?.youtube ||
+      currentUser?.handles?.discord
+  );
+  const blockedForSocialSetup =
+    currentUser?.role === 'ambassador' && (requiresSocialSetup || !hasSocialAccount);
 
   const handleSubmit = useCallback(async () => {
     if (!task) return;
+    if (!currentUser?.id) {
+      Alert.alert('Session Required', 'Please sign in again.');
+      return;
+    }
+    if (blockedForSocialSetup) {
+      Alert.alert(
+        'Add a Social Account First',
+        'Please add at least one social account in your profile before submitting tasks.'
+      );
+      return;
+    }
     if (!selectedPlatform) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Select Platform', 'Please select which platform you posted on.');
@@ -55,7 +76,13 @@ export default function TaskDetailScreen() {
       submittedAt: new Date().toISOString(),
     };
 
-    await addSubmission(newSubmission, currentUser?.id || '');
+    const submissionResult = await addSubmission(newSubmission, currentUser.id);
+    if (!submissionResult.success) {
+      setIsSubmitting(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Submission Failed', submissionResult.error || 'Failed to submit. Please try again.');
+      return;
+    }
     
     setIsSubmitting(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -75,7 +102,11 @@ export default function TaskDetailScreen() {
         }
       ]
     );
-  }, [selectedPlatform, postUrl, notes, task, addSubmission, currentUser?.id]);
+  }, [selectedPlatform, postUrl, notes, task, addSubmission, currentUser, blockedForSocialSetup]);
+
+  if (!currentUser) {
+    return <LoadingScreen message="Loading user..." />;
+  }
 
   if (!task) {
     return (
@@ -198,7 +229,7 @@ export default function TaskDetailScreen() {
           {relatedAssets.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Related Assets</Text>
-              <PressableScale style={styles.assetsLink} onPress={() => router.push('/assets')} testID="related-assets">
+              <PressableScale style={styles.assetsLink} onPress={() => router.push('/(tabs)/assets')} testID="related-assets">
                 <Text style={styles.assetsLinkText}>{relatedAssets.length} assets available</Text>
                 <ChevronDown size={16} color={Colors.dark.primary} style={{ transform: [{ rotate: '-90deg' }] }} />
               </PressableScale>
@@ -285,13 +316,22 @@ export default function TaskDetailScreen() {
               </View>
             ) : (
               <PressableScale 
-                style={styles.submitBtn}
-                onPress={() => setShowSubmitForm(true)}
+                style={[styles.submitBtn, blockedForSocialSetup && styles.submitBtnDisabled]}
+                onPress={() => {
+                  if (blockedForSocialSetup) {
+                    Alert.alert('Add Social Account', 'Go to your profile and add at least one social account first.');
+                    return;
+                  }
+                  setShowSubmitForm(true);
+                }}
+                disabled={blockedForSocialSetup}
                 hapticType="medium"
                 testID="open-submit-form"
               >
                 <Camera size={20} color="#FFF" />
-                <Text style={styles.submitBtnText}>Submit My Post</Text>
+                <Text style={styles.submitBtnText}>
+                  {blockedForSocialSetup ? 'Add Socials to Submit' : 'Submit My Post'}
+                </Text>
               </PressableScale>
             )}
           </View>
@@ -608,6 +648,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.primary,
     paddingVertical: 16,
     borderRadius: 14,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
   },
   submitBtnText: {
     fontSize: 16,

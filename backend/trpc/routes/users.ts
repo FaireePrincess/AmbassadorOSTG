@@ -9,6 +9,9 @@ const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
 const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
 const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
 const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
+const LEGACY_EMAIL_GROUPS = [
+  ["tatsianamikhailava@mail.ru", "tanushkaplushka96@gmail.com"],
+];
 let initialized = false;
 let usersCache: User[] = [];
 
@@ -25,10 +28,74 @@ function sanitizeAvatar(avatar?: string): string {
   return avatar;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function resolveEmailCandidates(email: string): string[] {
+  const normalized = normalizeEmail(email);
+  const candidates = new Set([normalized]);
+
+  for (const group of LEGACY_EMAIL_GROUPS) {
+    if (group.includes(normalized)) {
+      for (const alias of group) {
+        candidates.add(alias);
+      }
+    }
+  }
+
+  return [...candidates];
+}
+
+function userMatchesEmail(user: User, email: string): boolean {
+  const candidates = resolveEmailCandidates(email);
+  return candidates.includes(normalizeEmail(user.email));
+}
+
+function safeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function sanitizeHandleValue(value?: string): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function sanitizeHandles(handles?: User["handles"]): User["handles"] {
+  if (!handles) return {};
+  return {
+    twitter: sanitizeHandleValue(handles.twitter),
+    instagram: sanitizeHandleValue(handles.instagram),
+    tiktok: sanitizeHandleValue(handles.tiktok),
+    youtube: sanitizeHandleValue(handles.youtube),
+    discord: sanitizeHandleValue(handles.discord),
+  };
+}
+
 function sanitizeUser(user: User): User {
+  const stats = user.stats || {
+    totalPosts: 0,
+    totalImpressions: 0,
+    totalLikes: 0,
+    totalRetweets: 0,
+    completedTasks: 0,
+  };
+
   return {
     ...user,
     avatar: sanitizeAvatar(user.avatar),
+    email: normalizeEmail(user.email),
+    handles: sanitizeHandles(user.handles),
+    points: safeNumber(user.points),
+    rank: safeNumber(user.rank),
+    stats: {
+      totalPosts: safeNumber(stats.totalPosts),
+      totalImpressions: safeNumber(stats.totalImpressions),
+      totalLikes: safeNumber(stats.totalLikes),
+      totalRetweets: safeNumber(stats.totalRetweets),
+      completedTasks: safeNumber(stats.completedTasks),
+    },
   };
 }
 
@@ -37,7 +104,7 @@ async function sanitizeAndPersistUsers(users: User[]): Promise<User[]> {
   const updates: Promise<unknown>[] = [];
   for (let i = 0; i < users.length; i++) {
     if (users[i].avatar !== normalized[i].avatar) {
-      updates.push(db.update(COLLECTION, users[i].id, { avatar: normalized[i].avatar }));
+      updates.push(db.update<User>(COLLECTION, users[i].id, { avatar: normalized[i].avatar }));
     }
   }
   if (updates.length > 0) {
@@ -90,17 +157,18 @@ export const usersRouter = createTRPCRouter({
     .query(async ({ input }) => {
       console.log("[Users] Fetching user by email:", input.email);
       const users = await getUsers();
-      const user = users.find((u) => u.email.toLowerCase() === input.email.toLowerCase());
+      const user = users.find((u) => userMatchesEmail(u, input.email));
       return user ? sanitizeUser(user) : null;
     }),
 
   login: publicProcedure
     .input(z.object({ email: z.string(), password: z.string() }))
     .mutation(async ({ input }) => {
-      console.log("[Users] Login attempt for:", input.email);
+      const normalizedEmail = normalizeEmail(input.email);
+      console.log("[Users] Login attempt for:", normalizedEmail);
       const users = await getUsers();
       const user = users.find(
-        (u) => u.email.toLowerCase() === input.email.toLowerCase() && u.password === input.password
+        (u) => userMatchesEmail(u, normalizedEmail) && u.password === input.password
       );
       if (!user) {
         throw new Error("Invalid credentials");
@@ -115,14 +183,14 @@ export const usersRouter = createTRPCRouter({
   activate: publicProcedure
     .input(z.object({ email: z.string(), inviteCode: z.string(), password: z.string() }))
     .mutation(async ({ input }) => {
-      const normalizedEmail = input.email.trim().toLowerCase();
+      const normalizedEmail = normalizeEmail(input.email);
       const normalizedInviteCode = input.inviteCode.trim().toUpperCase();
 
       console.log("[Users] Activation attempt with email:", normalizedEmail, "code:", normalizedInviteCode);
       const users = await getUsers();
       
       // First, find user by email to give better error messages
-      const userByEmail = users.find((u) => u.email.trim().toLowerCase() === normalizedEmail);
+      const userByEmail = users.find((u) => userMatchesEmail(u, normalizedEmail));
       
       if (!userByEmail) {
         console.log("[Users] Activation failed - email not found:", input.email);
@@ -180,9 +248,9 @@ export const usersRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const inviteCode = `FSL${Date.now().toString(36).toUpperCase()}`;
-      const normalizedEmail = input.email.trim().toLowerCase();
+      const normalizedEmail = normalizeEmail(input.email);
       const users = await getUsers(true);
-      const existing = users.find((u) => u.email.trim().toLowerCase() === normalizedEmail);
+      const existing = users.find((u) => userMatchesEmail(u, normalizedEmail));
 
       if (existing) {
         if (existing.status === "active") {
@@ -278,9 +346,22 @@ export const usersRouter = createTRPCRouter({
         throw new Error("User not found");
       }
       
-      const updatedUser = { ...users[index], ...input } as User;
-      updatedUser.avatar = sanitizeAvatar(input.avatar ?? users[index].avatar);
-      await db.update(COLLECTION, input.id, updatedUser);
+      const baseUser = users[index];
+      const mergedHandles = input.handles
+        ? sanitizeHandles({ ...baseUser.handles, ...input.handles })
+        : sanitizeHandles(baseUser.handles);
+      const updatedUser = sanitizeUser({
+        ...baseUser,
+        ...input,
+        email: input.email !== undefined ? normalizeEmail(input.email) : baseUser.email,
+        avatar: sanitizeAvatar(input.avatar ?? baseUser.avatar),
+        handles: mergedHandles,
+        fslEmail:
+          input.fslEmail !== undefined
+            ? sanitizeHandleValue(input.fslEmail)
+            : baseUser.fslEmail,
+      } as User);
+      await db.update<User>(COLLECTION, input.id, updatedUser);
       usersCache[index] = updatedUser;
       
       console.log("[Users] Updated user:", input.id);

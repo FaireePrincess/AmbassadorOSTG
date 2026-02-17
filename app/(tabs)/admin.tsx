@@ -269,7 +269,7 @@ export default function AdminScreen() {
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <EmptyState
           icon={Shield}
           title="Admin Access Required"
@@ -305,7 +305,7 @@ export default function AdminScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>User Management</Text>
         <PressableScale 

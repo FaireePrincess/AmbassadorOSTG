@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
-import { Submission, SubmissionRating, SubmissionStatus } from '@/types';
+import { Submission, SubmissionRating, SubmissionStatus, Platform } from '@/types';
 import PlatformBadge from '@/components/PlatformBadge';
 import StatusBadge from '@/components/StatusBadge';
 import PressableScale from '@/components/PressableScale';
@@ -205,7 +205,7 @@ function AdminReviewScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Review Submissions</Text>
         <View style={styles.headerStats}>
@@ -604,11 +604,16 @@ function AdminReviewScreen() {
 
 function UserSubmissionsScreen() {
   const { currentUser } = useAuth();
-  const { isRefreshing, refreshData } = useApp();
+  const { isRefreshing, refreshData, updateSubmission } = useApp();
   const userSubmissions = useUserSubmissions(currentUser?.id);
   const [activeTab, setActiveTab] = useState<FilterTab | 'all'>('all');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editPlatform, setEditPlatform] = useState<Platform>('twitter');
+  const [editPostUrl, setEditPostUrl] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isEditingSubmission, setIsEditingSubmission] = useState(false);
 
   const filteredSubmissions = useMemo(() => {
     if (activeTab === 'all') return userSubmissions;
@@ -634,8 +639,43 @@ function UserSubmissionsScreen() {
     });
   }, []);
 
+  const openEditModal = useCallback((submission: Submission) => {
+    setEditPlatform(submission.platform);
+    setEditPostUrl(submission.postUrl);
+    setEditNotes(submission.notes || '');
+    setIsEditModalVisible(true);
+  }, []);
+
+  const handleSaveEdits = useCallback(async () => {
+    if (!selectedSubmission || !currentUser?.id) return;
+    if (!editPostUrl.trim()) {
+      Alert.alert('Post URL Required', 'Please enter your updated post URL.');
+      return;
+    }
+
+    setIsEditingSubmission(true);
+    const result = await updateSubmission(selectedSubmission.id, currentUser.id, {
+      platform: editPlatform,
+      postUrl: editPostUrl.trim(),
+      notes: editNotes.trim() || undefined,
+    });
+    setIsEditingSubmission(false);
+
+    if (!result.success) {
+      Alert.alert('Error', result.error || 'Failed to update submission');
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsEditModalVisible(false);
+    setIsDetailModalVisible(false);
+    setSelectedSubmission(null);
+    await refreshData();
+    Alert.alert('Updated', 'Your submission was updated and sent back to pending review.');
+  }, [selectedSubmission, currentUser?.id, editPlatform, editPostUrl, editNotes, updateSubmission, refreshData]);
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Submissions</Text>
         <View style={styles.headerStats}>
@@ -824,9 +864,84 @@ function UserSubmissionsScreen() {
                   </View>
                 )}
 
+                {(selectedSubmission.status === 'pending' || selectedSubmission.status === 'needs_edits') && (
+                  <PressableScale
+                    style={styles.editSubmissionBtn}
+                    onPress={() => openEditModal(selectedSubmission)}
+                  >
+                    <Edit3 size={16} color={Colors.dark.primary} />
+                    <Text style={styles.editSubmissionText}>Edit Submission</Text>
+                  </PressableScale>
+                )}
+
                 <View style={styles.modalBottomPadding} />
               </>
             )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isEditModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setIsEditModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Edit Submission</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.editFormSection}>
+              <Text style={styles.inputLabel}>Platform</Text>
+              <View style={styles.editPlatformsRow}>
+                {(['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'] as Platform[]).map((platform) => (
+                  <PressableScale
+                    key={platform}
+                    style={[styles.editPlatformChip, editPlatform === platform && styles.editPlatformChipActive]}
+                    onPress={() => setEditPlatform(platform)}
+                    hapticType="selection"
+                  >
+                    <PlatformBadge platform={platform} />
+                  </PressableScale>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Post URL</Text>
+              <TextInput
+                style={styles.feedbackInput}
+                value={editPostUrl}
+                onChangeText={setEditPostUrl}
+                autoCapitalize="none"
+                placeholder="https://..."
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+
+              <Text style={styles.inputLabel}>Notes</Text>
+              <TextInput
+                style={[styles.feedbackInput, styles.notesInput]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                multiline
+                placeholder="Optional notes for reviewer"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+
+              <PressableScale
+                style={[styles.approveBtn, isEditingSubmission && styles.btnDisabled]}
+                onPress={handleSaveEdits}
+                disabled={isEditingSubmission}
+              >
+                <CheckCircle size={18} color="#FFF" />
+                <Text style={styles.approveBtnText}>{isEditingSubmission ? 'Saving...' : 'Save Changes'}</Text>
+              </PressableScale>
+            </View>
+            <View style={styles.modalBottomPadding} />
           </ScrollView>
         </View>
       </Modal>
@@ -1246,6 +1361,20 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  feedbackInput: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.dark.text,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginBottom: 14,
+  },
+  notesInput: {
+    minHeight: 90,
+    textAlignVertical: 'top',
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: 10,
@@ -1338,6 +1467,44 @@ const styles = StyleSheet.create({
   },
   notesSection: {
     marginBottom: 24,
+  },
+  editSubmissionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.dark.primary + '15',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '40',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  editSubmissionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.dark.primary,
+  },
+  editFormSection: {
+    paddingBottom: 8,
+  },
+  editPlatformsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  editPlatformChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  editPlatformChipActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
   },
   resetSubmissionBtn: {
     flexDirection: 'row',

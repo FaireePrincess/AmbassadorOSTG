@@ -8,11 +8,17 @@ export const trpc = createTRPCReact<AppRouter>();
 
 const DEFAULT_BACKEND_URL = "https://ambassadorostg.onrender.com";
 const normalizeBaseUrl = (value: string): string => value.trim().replace(/\/+$/, '');
+const normalizeBackendOrigin = (value: string): string => {
+  const normalized = normalizeBaseUrl(value);
+  return normalized
+    .replace(/\/api\/trpc$/i, '')
+    .replace(/\/api$/i, '');
+};
 
 export const getApiBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   if (envUrl && envUrl.startsWith('http')) {
-    const normalized = normalizeBaseUrl(envUrl);
+    const normalized = normalizeBackendOrigin(envUrl);
     console.log('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL:', normalized);
     return normalized;
   }
@@ -22,7 +28,7 @@ export const getApiBaseUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const apiParam = params.get('api');
       if (apiParam && apiParam.startsWith('http')) {
-        const normalized = normalizeBaseUrl(apiParam);
+        const normalized = normalizeBackendOrigin(apiParam);
         try {
           localStorage.setItem('RORK_API_BASE_URL', normalized);
         } catch {
@@ -33,7 +39,7 @@ export const getApiBaseUrl = () => {
 
       const stored = localStorage.getItem('RORK_API_BASE_URL');
       if (stored && stored.startsWith('http')) {
-        const normalized = normalizeBaseUrl(stored);
+        const normalized = normalizeBackendOrigin(stored);
         console.log('[tRPC] API base URL from localStorage:', normalized);
         return normalized;
       }

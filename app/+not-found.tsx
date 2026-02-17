@@ -11,7 +11,7 @@ export default function NotFoundScreen() {
         <AlertCircle size={64} color={Colors.dark.textMuted} />
         <Text style={styles.title}>Page not found</Text>
         <Text style={styles.subtitle}>The page you are looking for does not exist.</Text>
-        <Link href="/" style={styles.link}>
+        <Link href="/(tabs)" style={styles.link}>
           <Text style={styles.linkText}>Go to Home</Text>
         </Link>
       </View>

@@ -240,7 +240,7 @@ export default function TasksScreen() {
   }, [deleteTask]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
@@ -258,6 +258,7 @@ export default function TasksScreen() {
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -272,6 +273,9 @@ export default function TasksScreen() {
             <Text style={styles.sectionTitle}>Active Campaigns</Text>
             <ScrollView 
               horizontal 
+              scrollEnabled
+              nestedScrollEnabled
+              directionalLockEnabled
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.campaignsScroll}
             >
@@ -675,6 +679,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 24,
+  },
+  contentContainer: {
+    paddingBottom: 120,
   },
   sectionTitle: {
     fontSize: 18,

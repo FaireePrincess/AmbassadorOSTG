@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Linking, PanResponder, TouchableOpacity } from 'react-native';
 import Image from '@/components/StableImage';
 import Constants from 'expo-constants';
@@ -17,6 +17,7 @@ import StatusBadge from '@/components/StatusBadge';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
+import LoadingScreen from '@/components/LoadingScreen';
 
 type TabType = 'submissions' | 'stats';
 
@@ -65,6 +66,17 @@ export default function ProfileScreen() {
     setEditFslEmail(currentUser.fslEmail || '');
     setEditAvatar(normalizeAvatarUri(currentUser.avatar));
     setIsEditModalVisible(true);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setEditName(currentUser.name);
+    setEditTwitter(currentUser.handles?.twitter || '');
+    setEditInstagram(currentUser.handles?.instagram || '');
+    setEditTiktok(currentUser.handles?.tiktok || '');
+    setEditDiscord(currentUser.handles?.discord || '');
+    setEditFslEmail(currentUser.fslEmail || '');
+    setEditAvatar(normalizeAvatarUri(currentUser.avatar));
   }, [currentUser]);
 
   const handleLogout = useCallback(() => {
@@ -202,7 +214,7 @@ export default function ProfileScreen() {
   }, [currentPassword, newPassword, confirmPassword, currentUser, changePassword]);
 
   if (!currentUser) {
-    return null;
+    return <LoadingScreen message="Loading profile..." />;
   }
 
   const user = currentUser;
@@ -210,9 +222,10 @@ export default function ProfileScreen() {
   const buildLabel = getBuildLabel(Constants.expoConfig?.version);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -500,7 +513,7 @@ export default function ProfileScreen() {
               <X size={24} color={Colors.dark.text} />
             </PressableScale>
             <Text style={styles.modalTitle}>Edit Profile</Text>
-            <PressableScale onPress={handleSaveProfile} testID="save-profile">
+            <PressableScale onPress={handleSaveProfile} testID="save-profile" disabled={isSavingProfile}>
               <Save size={24} color={Colors.dark.primary} />
             </PressableScale>
           </View>
@@ -779,6 +792,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.background,
+  },
+  contentContainer: {
+    paddingBottom: 120,
   },
   header: {
     padding: 20,

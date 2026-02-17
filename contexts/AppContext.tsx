@@ -66,6 +66,28 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const [ambassadorFeed, setAmbassadorFeed] = useState<AmbassadorPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const syncSubmissionViewsFromBackend = useCallback(async () => {
+    if (!BACKEND_ENABLED) return;
+    const [backendSubmissions, backendTasks, backendFeed] = await Promise.all([
+      trpcClient.submissions.list.query().catch(() => null),
+      trpcClient.tasks.list.query().catch(() => null),
+      trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch(() => null),
+    ]);
+
+    if (Array.isArray(backendSubmissions)) {
+      setSubmissions(backendSubmissions);
+      void saveStoredList(STORAGE_KEYS.SUBMISSIONS, backendSubmissions);
+    }
+    if (Array.isArray(backendTasks)) {
+      setTasks(backendTasks);
+      void saveStoredList(STORAGE_KEYS.TASKS, backendTasks);
+    }
+    if (Array.isArray(backendFeed)) {
+      setAmbassadorFeed(backendFeed);
+      void saveStoredList(STORAGE_KEYS.AMBASSADOR_FEED, backendFeed);
+    }
+  }, []);
+
   const fetchAllData = useCallback(async () => {
     console.log('[AppContext] Loading all data from backend...');
     try {
@@ -257,13 +279,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           screenshotUrl: submission.screenshotUrl,
           notes: submission.notes,
         });
-        
-        setSubmissions(prev => [result, ...prev]);
-        setTasks(prev => prev.map(t => 
-          t.id === submission.taskId 
-            ? { ...t, submissions: (t.submissions || 0) + 1 }
-            : t
-        ));
+        await syncSubmissionViewsFromBackend();
         
         console.log('[AppContext] Submission added to backend:', result.id, 'by user:', userId);
         return { success: true, submission: result };
@@ -291,7 +307,59 @@ export const [AppProvider, useApp] = createContextHook(() => {
       console.log('[AppContext] Error adding submission:', errMsg, error);
       return { success: false, error: errMsg };
     }
-  }, []);
+  }, [syncSubmissionViewsFromBackend]);
+
+  const updateSubmission = useCallback(async (
+    submissionId: string,
+    userId: string,
+    updates: {
+      platform: Submission['platform'];
+      postUrl: string;
+      screenshotUrl?: string;
+      notes?: string;
+    }
+  ) => {
+    try {
+      if (BACKEND_ENABLED) {
+        const result = await trpcClient.submissions.update.mutate({
+          id: submissionId,
+          userId,
+          platform: updates.platform,
+          postUrl: updates.postUrl,
+          screenshotUrl: updates.screenshotUrl,
+          notes: updates.notes,
+        });
+        await syncSubmissionViewsFromBackend();
+        return { success: true, submission: result };
+      }
+
+      setSubmissions(prev => {
+        const updated = prev.map(s =>
+          s.id === submissionId && s.userId === userId && (s.status === 'pending' || s.status === 'needs_edits')
+            ? {
+                ...s,
+                platform: updates.platform,
+                postUrl: updates.postUrl,
+                screenshotUrl: updates.screenshotUrl,
+                notes: updates.notes,
+                status: 'pending' as const,
+                feedback: undefined,
+                rating: undefined,
+                reviewedAt: undefined,
+                submittedAt: new Date().toISOString(),
+              }
+            : s
+        );
+        void saveStoredList(STORAGE_KEYS.SUBMISSIONS, updated);
+        return updated;
+      });
+      return { success: true };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Failed to update submission';
+      console.log('[AppContext] Error updating submission:', errMsg, error);
+      return { success: false, error: errMsg };
+    }
+  }, [syncSubmissionViewsFromBackend]);
 
   const reviewSubmission = useCallback(async (
     submissionId: string, 
@@ -311,25 +379,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
           feedback,
           metrics,
         });
-
-        const backendFeed = await trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch((e) => {
-          console.log('[AppContext] Failed to refresh ambassador feed after review:', e);
-          return [] as AmbassadorPost[];
-        });
-        
-        setSubmissions(prev => prev.map(s => 
-          s.id === submissionId 
-            ? { 
-                ...s, 
-                status, 
-                rating, 
-                feedback, 
-                metrics,
-                reviewedAt: new Date().toISOString(),
-              }
-            : s
-        ));
-        setAmbassadorFeed(backendFeed);
+        await syncSubmissionViewsFromBackend();
 
         console.log('[AppContext] Submission reviewed in backend:', submissionId, status);
         return { success: true };
@@ -359,7 +409,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
       console.log('[AppContext] Error reviewing submission:', errMsg, error);
       return { success: false, error: errMsg };
     }
-  }, []);
+  }, [syncSubmissionViewsFromBackend]);
 
   const updateRsvp = useCallback(async (eventId: string, isRsvped: boolean) => {
     const updatedRsvps = { ...rsvpStates, [eventId]: isRsvped };
@@ -785,8 +835,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     try {
       if (BACKEND_ENABLED) {
         await trpcClient.submissions.delete.mutate({ id: submissionId });
-        
-        setSubmissions(prev => prev.filter(s => s.id !== submissionId));
+        await syncSubmissionViewsFromBackend();
         
         console.log('[AppContext] Submission deleted from backend:', submissionId);
         return { success: true };
@@ -804,14 +853,16 @@ export const [AppProvider, useApp] = createContextHook(() => {
       console.log('[AppContext] Error deleting submission:', error);
       return { success: false, error: 'Failed to delete submission' };
     }
-  }, []);
+  }, [syncSubmissionViewsFromBackend]);
 
   const getUserSubmissionForTask = useCallback((userId: string, taskId: string) => {
     return submissions.find(s => s.userId === userId && s.taskId === taskId);
   }, [submissions]);
 
   const hasUserSubmittedTask = useCallback((userId: string, taskId: string) => {
-    return submissions.some(s => s.userId === userId && s.taskId === taskId);
+    return submissions.some(
+      (s) => s.userId === userId && s.taskId === taskId && s.status !== 'rejected'
+    );
   }, [submissions]);
 
   const allSubmissions = submissions;
@@ -830,6 +881,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     isLoading,
     ambassadorFeed,
     addSubmission,
+    updateSubmission,
     reviewSubmission,
     updateRsvp,
     refreshData,

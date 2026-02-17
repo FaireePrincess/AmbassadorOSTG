@@ -14,7 +14,7 @@ type AuthMode = 'login' | 'activate';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, activateAccount, isLoading, isAuthenticated } = useAuth();
+  const { login, activateAccount, isLoading, isAuthenticated, requiresSocialSetup } = useAuth();
   
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -46,7 +46,7 @@ export default function LoginScreen() {
 
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      router.replace(requiresSocialSetup ? '/(tabs)/profile' : '/(tabs)');
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Login Failed', result.error);
@@ -75,8 +75,8 @@ export default function LoginScreen() {
 
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Welcome!', 'Your account is now active. You can start submitting content!', [
-        { text: 'Get Started', onPress: () => router.replace('/(tabs)') }
+      Alert.alert('Welcome!', 'Your account is now active. Please add at least one social account to continue.', [
+        { text: 'Continue', onPress: () => router.replace('/(tabs)/profile') }
       ]);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -85,7 +85,7 @@ export default function LoginScreen() {
   }, [email, inviteCode, password, confirmPassword, activateAccount, router]);
 
   if (!isLoading && isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={requiresSocialSetup ? "/(tabs)/profile" : "/(tabs)"} />;
   }
 
   return (

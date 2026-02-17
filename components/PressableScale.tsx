@@ -66,10 +66,6 @@ export default function PressableScale({
     onPress?.(e);
   }, [haptic, hapticType, onPress]);
 
-  const handleWebClick = useCallback((e: any) => {
-    handlePress(e);
-  }, [handlePress]);
-
   return (
     Platform.OS === 'web' ? (
       <TouchableOpacity
@@ -77,7 +73,6 @@ export default function PressableScale({
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         onPress={handlePress}
-        onClick={handleWebClick as any}
         activeOpacity={1}
         {...props}
       >

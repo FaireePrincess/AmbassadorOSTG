@@ -13,6 +13,7 @@ import { normalizeAvatarUri } from '@/constants/avatarPresets';
 import StatCard from '@/components/StatCard';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
+import LoadingScreen from '@/components/LoadingScreen';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -124,13 +125,13 @@ export default function HomeScreen() {
   }, []);
 
   if (!currentUser) {
-    return null;
+    return <LoadingScreen message="Loading dashboard..." />;
   }
 
   const user = currentUser;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -148,7 +149,7 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>Welcome back,</Text>
               <Text style={styles.userName} testID="user-name">{user.name}</Text>
             </View>
-            <PressableScale onPress={() => router.push('/profile')} testID="avatar-button">
+            <PressableScale onPress={() => router.push('/(tabs)/profile')} testID="avatar-button">
               <Image source={normalizeAvatarUri(user.avatar)} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
             </PressableScale>
           </View>

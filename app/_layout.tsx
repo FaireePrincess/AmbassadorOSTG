@@ -7,10 +7,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { trpc, trpcReactClient } from "@/lib/trpc";
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, currentUser, requiresSocialSetup } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -18,13 +19,20 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'login';
+    const isOnProfile = segments[0] === '(tabs)' && segments[1] === 'profile';
+    const mustCompleteSocialSetup =
+      isAuthenticated &&
+      currentUser?.role === 'ambassador' &&
+      requiresSocialSetup;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/login');
+    } else if (mustCompleteSocialSetup && !isOnProfile) {
+      router.replace('/(tabs)/profile');
     } else if (isAuthenticated && inAuthGroup) {
-      router.replace('/(tabs)');
+      router.replace(mustCompleteSocialSetup ? '/(tabs)/profile' : '/(tabs)');
     }
-  }, [isAuthenticated, isLoading, segments, router]);
+  }, [isAuthenticated, isLoading, segments, router, requiresSocialSetup, currentUser?.role]);
 
   if (isLoading) {
     return (
@@ -77,13 +85,15 @@ export default function RootLayout() {
   return (
     <trpc.Provider client={trpcReactClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <AuthProvider>
-            <AppProvider>
-              <RootLayoutNav />
-            </AppProvider>
-          </AuthProvider>
-        </GestureHandlerRootView>
+        <ErrorBoundary>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <AuthProvider>
+              <AppProvider>
+                <RootLayoutNav />
+              </AppProvider>
+            </AuthProvider>
+          </GestureHandlerRootView>
+        </ErrorBoundary>
       </QueryClientProvider>
     </trpc.Provider>
   );

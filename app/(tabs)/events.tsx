@@ -222,7 +222,7 @@ export default function EventsScreen() {
   }, [deleteEvent]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
