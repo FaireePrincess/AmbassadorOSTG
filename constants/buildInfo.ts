@@ -1,5 +1,5 @@
-export const BUILD_MARKER = "2026-02-12-14";
-export const BUILD_COMMIT = "web-image-pointer-fix";
+export const BUILD_MARKER = "2026-02-17-01";
+export const BUILD_COMMIT = "stability-ux-patch";
 
 export function getBuildLabel(appVersion?: string): string {
   const version = appVersion || "unknown";
