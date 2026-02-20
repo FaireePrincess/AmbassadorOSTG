@@ -130,6 +130,10 @@ export default function EventsScreen() {
 
   const submitCreatePoll = useCallback(async () => {
     if (!currentUser?.id) return;
+    if (!isAdmin) {
+      Alert.alert('Access Denied', 'Only admins can create polls');
+      return;
+    }
     const options = pollForm.optionsCsv
       .split(',')
       .map((item) => item.trim())
@@ -160,7 +164,7 @@ export default function EventsScreen() {
       const message = error instanceof Error ? error.message : 'Create poll failed';
       Alert.alert('Create Poll Failed', message);
     }
-  }, [currentUser?.id, pollForm, createPollMutation]);
+  }, [currentUser?.id, isAdmin, pollForm, createPollMutation]);
 
   const handleRSVP = useCallback((eventId: string, eventTitle: string) => {
     const isCurrentlyRsvped = rsvpStates[eventId];
@@ -725,7 +729,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      <Modal
+      {isAdmin && <Modal
         visible={isCreatePollModalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
@@ -797,7 +801,7 @@ export default function EventsScreen() {
             </View>
           </ScrollView>
         </View>
-      </Modal>
+      </Modal>}
     </SafeAreaView>
   );
 }
