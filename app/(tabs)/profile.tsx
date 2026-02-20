@@ -4,7 +4,7 @@ import Image from '@/components/StableImage';
 import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
@@ -33,6 +33,9 @@ export default function ProfileScreen() {
   const [editInstagram, setEditInstagram] = useState(currentUser?.handles?.instagram || '');
   const [editTiktok, setEditTiktok] = useState(currentUser?.handles?.tiktok || '');
   const [editDiscord, setEditDiscord] = useState(currentUser?.handles?.discord || '');
+  const [editEmail, setEditEmail] = useState(currentUser?.email || '');
+  const [editUsername, setEditUsername] = useState(currentUser?.username || '');
+  const [editRegion, setEditRegion] = useState(currentUser?.region || '');
   const [editFslEmail, setEditFslEmail] = useState(currentUser?.fslEmail || '');
   const [editAvatar, setEditAvatar] = useState(normalizeAvatarUri(currentUser?.avatar));
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
@@ -63,6 +66,9 @@ export default function ProfileScreen() {
     setEditInstagram(currentUser.handles?.instagram || '');
     setEditTiktok(currentUser.handles?.tiktok || '');
     setEditDiscord(currentUser.handles?.discord || '');
+    setEditEmail(currentUser.email || '');
+    setEditUsername(currentUser.username || '');
+    setEditRegion(currentUser.region || '');
     setEditFslEmail(currentUser.fslEmail || '');
     setEditAvatar(normalizeAvatarUri(currentUser.avatar));
     setIsEditModalVisible(true);
@@ -75,6 +81,9 @@ export default function ProfileScreen() {
     setEditInstagram(currentUser.handles?.instagram || '');
     setEditTiktok(currentUser.handles?.tiktok || '');
     setEditDiscord(currentUser.handles?.discord || '');
+    setEditEmail(currentUser.email || '');
+    setEditUsername(currentUser.username || '');
+    setEditRegion(currentUser.region || '');
     setEditFslEmail(currentUser.fslEmail || '');
     setEditAvatar(normalizeAvatarUri(currentUser.avatar));
   }, [currentUser]);
@@ -111,6 +120,14 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
+    if (!editRegion.trim()) {
+      Alert.alert('Error', 'Region cannot be empty');
+      return;
+    }
+    if (editEmail.trim() && !editEmail.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email');
+      return;
+    }
 
     setIsSavingProfile(true);
 
@@ -121,6 +138,9 @@ export default function ProfileScreen() {
 
     const result = await updateProfile({
       name: editName.trim(),
+      email: editEmail.trim() || undefined,
+      username: editUsername.trim() || undefined,
+      region: editRegion.trim(),
       avatar: normalizeAvatarUri(editAvatar.trim() || currentUser.avatar),
       fslEmail: cleanHandle(editFslEmail),
       handles: {
@@ -142,7 +162,7 @@ export default function ProfileScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsEditModalVisible(false);
     Alert.alert('Success', 'Profile updated successfully!');
-  }, [currentUser, editAvatar, editDiscord, editFslEmail, editInstagram, editName, editTiktok, editTwitter, updateProfile]);
+  }, [currentUser, editAvatar, editDiscord, editEmail, editFslEmail, editInstagram, editName, editRegion, editTiktok, editTwitter, editUsername, updateProfile]);
 
   const selectRelativeAvatar = useCallback((direction: -1 | 1) => {
     const current = normalizeAvatarUri(editAvatar);
@@ -570,6 +590,56 @@ export default function ProfileScreen() {
                   placeholder="Your name"
                   placeholderTextColor={Colors.dark.textMuted}
                   testID="edit-name-input"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.sectionLabel}>Account</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputContainer}>
+                <Mail size={18} color={Colors.dark.textMuted} />
+                <TextInput
+                  style={styles.input}
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  testID="edit-email-input"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Username</Text>
+              <View style={styles.inputContainer}>
+                <UserIcon size={18} color={Colors.dark.textMuted} />
+                <TextInput
+                  style={styles.input}
+                  value={editUsername}
+                  onChangeText={setEditUsername}
+                  placeholder="username"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  testID="edit-username-input"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Region</Text>
+              <View style={styles.inputContainer}>
+                <MapPin size={18} color={Colors.dark.textMuted} />
+                <TextInput
+                  style={styles.input}
+                  value={editRegion}
+                  onChangeText={setEditRegion}
+                  placeholder="Your region"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  testID="edit-region-input"
                 />
               </View>
             </View>

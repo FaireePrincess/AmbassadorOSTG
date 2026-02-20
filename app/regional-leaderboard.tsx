@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, X } from 'lucide-react-native';
 import Image from '@/components/StableImage';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,12 +10,28 @@ import { useApp } from '@/contexts/AppContext';
 import { normalizeAvatarUri } from '@/constants/avatarPresets';
 import PlatformBadge from '@/components/PlatformBadge';
 import LoadingScreen from '@/components/LoadingScreen';
+import PressableScale from '@/components/PressableScale';
+import type { User } from '@/types';
 
 export default function RegionalLeaderboardScreen() {
-  const { currentUser, users, refreshUsers } = useAuth();
+  const router = useRouter();
+  const { currentUser, users, refreshUsers, isAdmin } = useAuth();
   const { ambassadorFeed, refreshData, isRefreshing } = useApp();
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [selectedAmbassador, setSelectedAmbassador] = useState<User | null>(null);
 
-  const region = currentUser?.region || 'Unknown';
+  useEffect(() => {
+    if (currentUser?.region && !selectedRegion) {
+      setSelectedRegion(currentUser.region);
+    }
+  }, [currentUser?.region, selectedRegion]);
+
+  const availableRegions = useMemo(() => {
+    const set = new Set(users.filter((u) => u.status === 'active').map((u) => u.region).filter(Boolean));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [users]);
+
+  const region = selectedRegion || currentUser?.region || 'Unknown';
 
   const regionalUsers = useMemo(() => {
     return users
@@ -63,9 +81,32 @@ export default function RegionalLeaderboardScreen() {
         }
       >
         <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <PressableScale style={styles.backBtn} onPress={() => router.back()}>
+              <ChevronLeft size={18} color={Colors.dark.text} />
+              <Text style={styles.backBtnText}>Back</Text>
+            </PressableScale>
+          </View>
           <Text style={styles.title}>{region} Regional Leaderboard</Text>
           <Text style={styles.subtitle}>Local rank, performance, and feed activity</Text>
         </View>
+
+        {isAdmin && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionFilterRow}>
+            {availableRegions.map((item) => {
+              const active = item === region;
+              return (
+                <PressableScale
+                  key={item}
+                  style={[styles.regionChip, active && styles.regionChipActive]}
+                  onPress={() => setSelectedRegion(item)}
+                >
+                  <Text style={[styles.regionChipText, active && styles.regionChipTextActive]}>{item}</Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+        )}
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
@@ -86,7 +127,7 @@ export default function RegionalLeaderboardScreen() {
           <Text style={styles.sectionTitle}>Rankings</Text>
           <View style={styles.card}>
             {regionalUsers.map((user) => (
-              <View key={user.id} style={styles.row}>
+              <PressableScale key={user.id} style={styles.row} onPress={() => setSelectedAmbassador(user)}>
                 <View style={styles.leftRow}>
                   <View style={styles.rankBadge}>
                     <Text style={styles.rankBadgeText}>{user.regionalRank}</Text>
@@ -98,7 +139,7 @@ export default function RegionalLeaderboardScreen() {
                   </View>
                 </View>
                 <Text style={styles.points}>{user.points.toLocaleString()}</Text>
-              </View>
+              </PressableScale>
             ))}
           </View>
         </View>
@@ -123,6 +164,37 @@ export default function RegionalLeaderboardScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <Modal visible={!!selectedAmbassador} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSelectedAmbassador(null)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setSelectedAmbassador(null)}>
+              <X size={22} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Ambassador Details</Text>
+            <View style={{ width: 22 }} />
+          </View>
+
+          {selectedAmbassador && (
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalProfileTop}>
+                <Image source={normalizeAvatarUri(selectedAmbassador.avatar)} style={styles.modalAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                <Text style={styles.modalName}>{selectedAmbassador.name}</Text>
+                <Text style={styles.modalMeta}>{selectedAmbassador.region} • {selectedAmbassador.role.replace('_', ' ')}</Text>
+              </View>
+
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>Social Handles</Text>
+                <Text style={styles.detailItem}>X: {selectedAmbassador.handles?.twitter || '-'}</Text>
+                <Text style={styles.detailItem}>Instagram: {selectedAmbassador.handles?.instagram || '-'}</Text>
+                <Text style={styles.detailItem}>TikTok: {selectedAmbassador.handles?.tiktok || '-'}</Text>
+                <Text style={styles.detailItem}>YouTube: {selectedAmbassador.handles?.youtube || '-'}</Text>
+                <Text style={styles.detailItem}>Discord: {selectedAmbassador.handles?.discord || '-'}</Text>
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -137,6 +209,27 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+  },
+  backBtnText: {
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   title: {
     color: Colors.dark.text,
     fontSize: 24,
@@ -146,6 +239,31 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: 13,
     marginTop: 4,
+  },
+  regionFilterRow: {
+    paddingHorizontal: 20,
+    gap: 8,
+    paddingBottom: 4,
+  },
+  regionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+  },
+  regionChipActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
+  },
+  regionChipText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  regionChipTextActive: {
+    color: Colors.dark.primary,
   },
   statsRow: {
     flexDirection: 'row',
@@ -271,5 +389,65 @@ const styles = StyleSheet.create({
   emptyText: {
     color: Colors.dark.textMuted,
     fontSize: 13,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    color: Colors.dark.text,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  modalProfileTop: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  modalAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    marginBottom: 10,
+  },
+  modalName: {
+    color: Colors.dark.text,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalMeta: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  detailCard: {
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    padding: 12,
+  },
+  detailTitle: {
+    color: Colors.dark.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  detailItem: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginBottom: 5,
   },
 });
