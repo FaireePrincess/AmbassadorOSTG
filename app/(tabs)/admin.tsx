@@ -16,12 +16,14 @@ import EmptyState from '@/components/EmptyState';
 import { trpcClient } from '@/lib/trpc';
 
 type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
+type AdminSectionTab = 'ambassadors' | 'season';
 
 export default function AdminScreen() {
   const router = useRouter();
   const { users, currentUser, isAdmin, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers } = useAuth();
   const { refreshData: refreshAppData } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [activeAdminSectionTab, setActiveAdminSectionTab] = useState<AdminSectionTab>('ambassadors');
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -47,6 +49,11 @@ export default function AdminScreen() {
   const [editUserEmail, setEditUserEmail] = useState('');
   const [editUserUsername, setEditUserUsername] = useState('');
   const [editUserRegion, setEditUserRegion] = useState('');
+  const [editUserTwitter, setEditUserTwitter] = useState('');
+  const [editUserInstagram, setEditUserInstagram] = useState('');
+  const [editUserTiktok, setEditUserTiktok] = useState('');
+  const [editUserYoutube, setEditUserYoutube] = useState('');
+  const [editUserDiscord, setEditUserDiscord] = useState('');
   const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
 
   const filteredUsers = users.filter(u => {
@@ -196,12 +203,18 @@ export default function AdminScreen() {
   }, []);
 
   const openEditUserModal = useCallback((userId: string, userName: string, email: string, username?: string, region?: string) => {
+    const user = users.find((item) => item.id === userId);
     setSelectedUserForEdit({ id: userId, name: userName });
     setEditUserEmail(email || '');
     setEditUserUsername(username || '');
     setEditUserRegion(region || '');
+    setEditUserTwitter(user?.handles?.twitter || '');
+    setEditUserInstagram(user?.handles?.instagram || '');
+    setEditUserTiktok(user?.handles?.tiktok || '');
+    setEditUserYoutube(user?.handles?.youtube || '');
+    setEditUserDiscord(user?.handles?.discord || '');
     setIsEditUserModalVisible(true);
-  }, []);
+  }, [users]);
 
   const handleSaveUserEdit = useCallback(async () => {
     if (!selectedUserForEdit) return;
@@ -221,6 +234,13 @@ export default function AdminScreen() {
         email: editUserEmail.trim().toLowerCase(),
         username: editUserUsername.trim() || undefined,
         region: editUserRegion.trim(),
+        handles: {
+          twitter: editUserTwitter.trim() || undefined,
+          instagram: editUserInstagram.trim() || undefined,
+          tiktok: editUserTiktok.trim() || undefined,
+          youtube: editUserYoutube.trim() || undefined,
+          discord: editUserDiscord.trim() || undefined,
+        },
       });
       await Promise.all([refreshUsers(), refreshAppData()]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -232,7 +252,7 @@ export default function AdminScreen() {
     } finally {
       setIsSavingUserEdit(false);
     }
-  }, [selectedUserForEdit, editUserEmail, editUserUsername, editUserRegion, refreshUsers, refreshAppData]);
+  }, [selectedUserForEdit, editUserEmail, editUserUsername, editUserRegion, editUserTwitter, editUserInstagram, editUserTiktok, editUserYoutube, editUserDiscord, refreshUsers, refreshAppData]);
 
   const handleResetPassword = useCallback(async () => {
     if (!selectedUserForReset) return;
@@ -382,30 +402,29 @@ export default function AdminScreen() {
         <View style={{ flex: 1 }} />
       </View>
 
-      <View style={styles.seasonCard}>
-        <View style={styles.seasonHeader}>
-          <Text style={styles.seasonTitle}>Season Control</Text>
-          <Text style={styles.seasonValue}>
-            {isSeasonLoading ? 'Loading...' : (currentSeason?.name || 'Season 1')}
-          </Text>
-        </View>
-        <Text style={styles.seasonMeta}>
-          {currentSeason?.startedAt
-            ? `Started ${new Date(currentSeason.startedAt).toLocaleDateString()}`
-            : 'Tracks leaderboard cycle'}
-        </Text>
+      <View style={styles.sectionTabsRow}>
         <PressableScale
-          style={[styles.closeSeasonBtn, isClosingSeason && styles.closeSeasonBtnDisabled]}
-          onPress={handleCloseSeason}
-          disabled={isClosingSeason || isSeasonLoading}
-          hapticType="medium"
+          style={[styles.sectionTabBtn, activeAdminSectionTab === 'ambassadors' && styles.sectionTabBtnActive]}
+          onPress={() => setActiveAdminSectionTab('ambassadors')}
+          hapticType="selection"
         >
-          <Text style={styles.closeSeasonBtnText}>
-            {isClosingSeason ? 'Closing Season...' : 'Close Current Season & Start New'}
+          <Text style={[styles.sectionTabText, activeAdminSectionTab === 'ambassadors' && styles.sectionTabTextActive]}>
+            Ambassadors
+          </Text>
+        </PressableScale>
+        <PressableScale
+          style={[styles.sectionTabBtn, activeAdminSectionTab === 'season' && styles.sectionTabBtnActive]}
+          onPress={() => setActiveAdminSectionTab('season')}
+          hapticType="selection"
+        >
+          <Text style={[styles.sectionTabText, activeAdminSectionTab === 'season' && styles.sectionTabTextActive]}>
+            Season Control
           </Text>
         </PressableScale>
       </View>
 
+      {activeAdminSectionTab === 'ambassadors' ? (
+      <>
       <View style={styles.tabsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
           {(['all', 'pending', 'active', 'suspended'] as FilterTab[]).map((tab) => (
@@ -557,6 +576,45 @@ export default function AdminScreen() {
         )}
         <View style={styles.bottomPadding} />
       </ScrollView>
+      </>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.dark.primary}
+            />
+          }
+        >
+          <View style={styles.seasonCard}>
+            <View style={styles.seasonHeader}>
+              <Text style={styles.seasonTitle}>Season Control</Text>
+              <Text style={styles.seasonValue}>
+                {isSeasonLoading ? 'Loading...' : (currentSeason?.name || 'Season 1')}
+              </Text>
+            </View>
+            <Text style={styles.seasonMeta}>
+              {currentSeason?.startedAt
+                ? `Started ${new Date(currentSeason.startedAt).toLocaleDateString()}`
+                : 'Tracks leaderboard cycle'}
+            </Text>
+            <PressableScale
+              style={[styles.closeSeasonBtn, isClosingSeason && styles.closeSeasonBtnDisabled]}
+              onPress={handleCloseSeason}
+              disabled={isClosingSeason || isSeasonLoading}
+              hapticType="medium"
+            >
+              <Text style={styles.closeSeasonBtnText}>
+                {isClosingSeason ? 'Closing Season...' : 'Close Current Season & Start New'}
+              </Text>
+            </PressableScale>
+          </View>
+          <View style={styles.bottomPadding} />
+        </ScrollView>
+      )}
 
       <Modal
         visible={isCreateModalVisible}
@@ -766,6 +824,76 @@ export default function AdminScreen() {
               </ScrollView>
             </View>
 
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>X (Twitter)</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserTwitter}
+                  onChangeText={setEditUserTwitter}
+                  placeholder="@handle"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Instagram</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserInstagram}
+                  onChangeText={setEditUserInstagram}
+                  placeholder="@handle"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>TikTok</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserTiktok}
+                  onChangeText={setEditUserTiktok}
+                  placeholder="@handle"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>YouTube</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserYoutube}
+                  onChangeText={setEditUserYoutube}
+                  placeholder="@channel"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Discord</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserDiscord}
+                  onChangeText={setEditUserDiscord}
+                  placeholder="username#0000"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
             <PressableScale
               style={[styles.resetButton, isSavingUserEdit && styles.resetButtonDisabled]}
               onPress={handleSaveUserEdit}
@@ -926,6 +1054,33 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     fontSize: 12,
     fontWeight: '700' as const,
+  },
+  sectionTabsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionTabBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sectionTabBtnActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary + '20',
+  },
+  sectionTabText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  sectionTabTextActive: {
+    color: Colors.dark.primary,
   },
   seasonCard: {
     backgroundColor: Colors.dark.surface,

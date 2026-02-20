@@ -62,10 +62,10 @@ export const adminRouter = createTRPCRouter({
   }),
 
   runXMetricsNow: publicProcedure
-    .input(z.object({ adminUserId: z.string() }))
+    .input(z.object({ adminUserId: z.string(), region: z.string().optional() }))
     .mutation(async ({ input }) => {
       await ensureAdmin(input.adminUserId);
-      return runXMetricsTrackingBatch("manual-admin");
+      return runXMetricsTrackingBatch("manual-admin", input.region);
     }),
 
   xMetricsStatus: publicProcedure
