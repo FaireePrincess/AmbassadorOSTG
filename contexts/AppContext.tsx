@@ -276,6 +276,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
           userId,
           platform: submission.platform,
           postUrl: submission.postUrl,
+          platforms: submission.platforms,
+          links: submission.links,
           screenshotUrl: submission.screenshotUrl,
           notes: submission.notes,
         });
@@ -315,6 +317,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
     updates: {
       platform: Submission['platform'];
       postUrl: string;
+      platforms?: Submission['platforms'];
+      links?: Submission['links'];
       screenshotUrl?: string;
       notes?: string;
     }
@@ -326,6 +330,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
           userId,
           platform: updates.platform,
           postUrl: updates.postUrl,
+          platforms: updates.platforms,
+          links: updates.links,
           screenshotUrl: updates.screenshotUrl,
           notes: updates.notes,
         });
@@ -340,6 +346,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
                 ...s,
                 platform: updates.platform,
                 postUrl: updates.postUrl,
+                platforms: updates.platforms,
+                links: updates.links,
                 screenshotUrl: updates.screenshotUrl,
                 notes: updates.notes,
                 status: 'pending' as const,

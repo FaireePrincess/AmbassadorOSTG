@@ -42,6 +42,12 @@ export default function AdminScreen() {
   const [currentSeason, setCurrentSeason] = useState<Season | null>(null);
   const [isSeasonLoading, setIsSeasonLoading] = useState(false);
   const [isClosingSeason, setIsClosingSeason] = useState(false);
+  const [isEditUserModalVisible, setIsEditUserModalVisible] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<{ id: string; name: string } | null>(null);
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserRegion, setEditUserRegion] = useState('');
+  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
 
   const filteredUsers = users.filter(u => {
     if (u.id === currentUser?.id) return false;
@@ -188,6 +194,45 @@ export default function AdminScreen() {
     setShowConfirmPasswordReset(false);
     setIsResetPasswordModalVisible(true);
   }, []);
+
+  const openEditUserModal = useCallback((userId: string, userName: string, email: string, username?: string, region?: string) => {
+    setSelectedUserForEdit({ id: userId, name: userName });
+    setEditUserEmail(email || '');
+    setEditUserUsername(username || '');
+    setEditUserRegion(region || '');
+    setIsEditUserModalVisible(true);
+  }, []);
+
+  const handleSaveUserEdit = useCallback(async () => {
+    if (!selectedUserForEdit) return;
+    if (!editUserEmail.trim() || !editUserEmail.includes('@')) {
+      Alert.alert('Error', 'Valid email is required');
+      return;
+    }
+    if (!editUserRegion.trim()) {
+      Alert.alert('Error', 'Region is required');
+      return;
+    }
+
+    setIsSavingUserEdit(true);
+    try {
+      await trpcClient.users.update.mutate({
+        id: selectedUserForEdit.id,
+        email: editUserEmail.trim().toLowerCase(),
+        username: editUserUsername.trim() || undefined,
+        region: editUserRegion.trim(),
+      });
+      await Promise.all([refreshUsers(), refreshAppData()]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsEditUserModalVisible(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update user';
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', message);
+    } finally {
+      setIsSavingUserEdit(false);
+    }
+  }, [selectedUserForEdit, editUserEmail, editUserUsername, editUserRegion, refreshUsers, refreshAppData]);
 
   const handleResetPassword = useCallback(async () => {
     if (!selectedUserForReset) return;
@@ -404,7 +449,9 @@ export default function AdminScreen() {
                       <View style={[styles.statusDot, { backgroundColor: getStatusColor(user.status) }]} />
                     </View>
                     <View style={styles.userDetails}>
-                      <Text style={styles.userName}>{user.name}</Text>
+                      <PressableScale hapticType="selection" onPress={() => openEditUserModal(user.id, user.name, user.email, user.username, user.region)}>
+                        <Text style={styles.userName}>{user.name}</Text>
+                      </PressableScale>
                       <Text style={styles.userEmail}>{user.email}</Text>
                     </View>
                   </View>
@@ -444,6 +491,13 @@ export default function AdminScreen() {
                 )}
 
                 <View style={styles.userActions}>
+                  <PressableScale
+                    style={[styles.actionBtn, styles.actionBtnInfo]}
+                    onPress={() => openEditUserModal(user.id, user.name, user.email, user.username, user.region)}
+                  >
+                    <Mail size={16} color={Colors.dark.primary} />
+                    <Text style={[styles.actionBtnText, { color: Colors.dark.primary }]}>Edit</Text>
+                  </PressableScale>
                   {user.status === 'pending' && (
                     <PressableScale
                       style={[styles.actionBtn, styles.actionBtnSuccess]}
@@ -632,6 +686,89 @@ export default function AdminScreen() {
                 </PressableScale>
               </>
             )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={isEditUserModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsEditUserModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setIsEditUserModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Edit Ambassador</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.resetPasswordSubtitle}>{selectedUserForEdit?.name}</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <View style={styles.inputContainer}>
+                <Mail size={18} color={Colors.dark.textMuted} />
+                <TextInput
+                  style={styles.input}
+                  value={editUserEmail}
+                  onChangeText={setEditUserEmail}
+                  placeholder="user@email.com"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Username</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserUsername}
+                  onChangeText={setEditUserUsername}
+                  placeholder="username"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Region</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.optionScroll}>
+                {regions.map((region) => (
+                  <PressableScale
+                    key={region}
+                    style={[styles.optionChip, editUserRegion === region && styles.optionChipActive]}
+                    onPress={() => setEditUserRegion(region)}
+                    hapticType="selection"
+                  >
+                    <Text style={[styles.optionChipText, editUserRegion === region && styles.optionChipTextActive]}>
+                      {region}
+                    </Text>
+                  </PressableScale>
+                ))}
+              </ScrollView>
+            </View>
+
+            <PressableScale
+              style={[styles.resetButton, isSavingUserEdit && styles.resetButtonDisabled]}
+              onPress={handleSaveUserEdit}
+              disabled={isSavingUserEdit}
+              hapticType="medium"
+            >
+              <Text style={styles.resetButtonText}>
+                {isSavingUserEdit ? 'Saving...' : 'Save User'}
+              </Text>
+            </PressableScale>
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
@@ -999,6 +1136,9 @@ const styles = StyleSheet.create({
   },
   actionBtnWarning: {
     backgroundColor: Colors.dark.warning + '15',
+  },
+  actionBtnInfo: {
+    backgroundColor: Colors.dark.primary + '15',
   },
   actionBtnText: {
     fontSize: 14,

@@ -18,8 +18,8 @@ export default function TaskDetailScreen() {
   const { addSubmission, tasks, assets, hasUserSubmittedTask } = useApp();
   const { currentUser, requiresSocialSetup } = useAuth();
   const [showSubmitForm, setShowSubmitForm] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformType | null>(null);
-  const [postUrl, setPostUrl] = useState('');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformType[]>([]);
+  const [linkByPlatform, setLinkByPlatform] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,18 +50,24 @@ export default function TaskDetailScreen() {
       );
       return;
     }
-    if (!selectedPlatform) {
+    if (selectedPlatforms.length === 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Select Platform', 'Please select which platform you posted on.');
+      Alert.alert('Select Platform', 'Please select at least one platform.');
       return;
     }
-    if (!postUrl.trim()) {
+    const missingLinkPlatform = selectedPlatforms.find((platform) => !linkByPlatform[platform]?.trim());
+    if (missingLinkPlatform) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Post URL Required', 'Please enter the URL of your post.');
+      Alert.alert('Post URL Required', `Please enter a link for ${missingLinkPlatform}.`);
       return;
     }
 
     setIsSubmitting(true);
+
+    const links = selectedPlatforms.map((platform) => ({
+      platform,
+      url: (linkByPlatform[platform] || '').trim(),
+    }));
 
     const newSubmission: Submission = {
       id: `sub-${Date.now()}`,
@@ -69,8 +75,10 @@ export default function TaskDetailScreen() {
       taskId: task.id,
       taskTitle: task.title,
       campaignTitle: task.campaignTitle,
-      platform: selectedPlatform,
-      postUrl: postUrl.trim(),
+      platform: selectedPlatforms[0],
+      platforms: selectedPlatforms,
+      links,
+      postUrl: links[0]?.url || '',
       notes: notes.trim() || undefined,
       status: 'pending',
       submittedAt: new Date().toISOString(),
@@ -95,14 +103,14 @@ export default function TaskDetailScreen() {
           text: 'Great!', 
           onPress: () => {
             setShowSubmitForm(false);
-            setPostUrl('');
+            setLinkByPlatform({});
             setNotes('');
-            setSelectedPlatform(null);
+            setSelectedPlatforms([]);
           }
         }
       ]
     );
-  }, [selectedPlatform, postUrl, notes, task, addSubmission, currentUser, blockedForSocialSetup]);
+  }, [selectedPlatforms, linkByPlatform, notes, task, addSubmission, currentUser, blockedForSocialSetup]);
 
   if (!currentUser) {
     return <LoadingScreen message="Loading user..." />;
@@ -245,8 +253,12 @@ export default function TaskDetailScreen() {
                 {task.platforms.map((p) => (
                   <PressableScale
                     key={p}
-                    style={[styles.platformOption, selectedPlatform === p && styles.platformOptionActive]}
-                    onPress={() => setSelectedPlatform(p)}
+                    style={[styles.platformOption, selectedPlatforms.includes(p) && styles.platformOptionActive]}
+                    onPress={() => {
+                      setSelectedPlatforms((prev) =>
+                        prev.includes(p) ? prev.filter((item) => item !== p) : [...prev, p]
+                      );
+                    }}
                     hapticType="selection"
                     testID={`platform-${p}`}
                   >
@@ -255,20 +267,29 @@ export default function TaskDetailScreen() {
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>Post URL</Text>
-              <View style={styles.inputContainer}>
-                <Link size={18} color={Colors.dark.textMuted} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="https://twitter.com/..."
-                  placeholderTextColor={Colors.dark.textMuted}
-                  value={postUrl}
-                  onChangeText={setPostUrl}
-                  autoCapitalize="none"
-                  keyboardType="url"
-                  testID="post-url-input"
-                />
-              </View>
+              {selectedPlatforms.map((platform) => (
+                <View key={platform}>
+                  <Text style={styles.inputLabel}>{platform.toUpperCase()} URL</Text>
+                  <View style={styles.inputContainer}>
+                    <Link size={18} color={Colors.dark.textMuted} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder={`https://${platform}.com/...`}
+                      placeholderTextColor={Colors.dark.textMuted}
+                      value={linkByPlatform[platform] || ''}
+                      onChangeText={(value) =>
+                        setLinkByPlatform((prev) => ({
+                          ...prev,
+                          [platform]: value,
+                        }))
+                      }
+                      autoCapitalize="none"
+                      keyboardType="url"
+                      testID={`post-url-input-${platform}`}
+                    />
+                  </View>
+                </View>
+              ))}
 
               <Text style={styles.inputLabel}>Notes (optional)</Text>
               <TextInput

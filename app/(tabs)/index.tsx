@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity, Modal } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -38,6 +38,7 @@ export default function HomeScreen() {
 
   const [showLeaderboardExpanded, setShowLeaderboardExpanded] = useState(false);
   const [showFeedExpanded, setShowFeedExpanded] = useState(false);
+  const [selectedLeaderboardUserId, setSelectedLeaderboardUserId] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshUsers();
@@ -58,6 +59,8 @@ export default function HomeScreen() {
       .map(u => ({
         id: u.id,
         name: u.name,
+        username: u.username,
+        handles: u.handles,
         region: u.region,
         points: u.points,
         posts: u.stats.totalPosts,
@@ -82,6 +85,11 @@ export default function HomeScreen() {
     const idx = fullLeaderboard.findIndex(u => u.id === currentUser.id);
     return idx >= 0 ? idx + 1 : 0;
   }, [currentUser, fullLeaderboard]);
+
+  const selectedLeaderboardUser = useMemo(() => {
+    if (!selectedLeaderboardUserId) return null;
+    return fullLeaderboard.find((entry) => entry.id === selectedLeaderboardUserId) || null;
+  }, [selectedLeaderboardUserId, fullLeaderboard]);
 
   const userStats = useMemo(() => {
     if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, points: 0 };
@@ -231,7 +239,7 @@ export default function HomeScreen() {
           
           <View style={styles.leaderboardCard}>
             {leaderboardRows.map((entry, index) => (
-              <View key={entry.id} style={[styles.leaderboardRow, index !== leaderboardRows.length - 1 && styles.leaderboardRowBorder]}>
+              <PressableScale key={entry.id} style={[styles.leaderboardRow, index !== leaderboardRows.length - 1 && styles.leaderboardRowBorder]} onPress={() => setSelectedLeaderboardUserId(entry.id)}>
                 <View style={styles.leaderboardLeft}>
                   <View style={[styles.rankBadge, index < 3 && styles.topRankBadge]}>
                     <Text style={[styles.rankBadgeText, index < 3 && styles.topRankText]}>
@@ -247,7 +255,7 @@ export default function HomeScreen() {
                   <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
                   <Text style={styles.leaderboardPosts}>{entry.posts} posts</Text>
                 </View>
-              </View>
+              </PressableScale>
             ))}
           </View>
         </View>
@@ -291,6 +299,37 @@ export default function HomeScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      <Modal
+        visible={!!selectedLeaderboardUser}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedLeaderboardUserId(null)}
+      >
+        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <PressableScale style={styles.regionalBtn} onPress={() => setSelectedLeaderboardUserId(null)}>
+              <Text style={styles.regionalBtnText}>Close</Text>
+            </PressableScale>
+            <Text style={styles.modalTitle}>Ambassador Profile</Text>
+            <View style={{ width: 62 }} />
+          </View>
+          {selectedLeaderboardUser && (
+            <View style={styles.modalBody}>
+              <Text style={styles.modalName}>{selectedLeaderboardUser.name}</Text>
+              <Text style={styles.modalMeta}>@{selectedLeaderboardUser.username || 'not-set'} • {selectedLeaderboardUser.region}</Text>
+              <Text style={styles.modalStat}>Rank: #{selectedLeaderboardUser.rank}</Text>
+              <Text style={styles.modalStat}>Points: {selectedLeaderboardUser.points.toLocaleString()}</Text>
+              <Text style={styles.modalSubTitle}>Social Handles</Text>
+              <Text style={styles.modalHandle}>X: {selectedLeaderboardUser.handles?.twitter || '-'}</Text>
+              <Text style={styles.modalHandle}>Instagram: {selectedLeaderboardUser.handles?.instagram || '-'}</Text>
+              <Text style={styles.modalHandle}>TikTok: {selectedLeaderboardUser.handles?.tiktok || '-'}</Text>
+              <Text style={styles.modalHandle}>YouTube: {selectedLeaderboardUser.handles?.youtube || '-'}</Text>
+              <Text style={styles.modalHandle}>Discord: {selectedLeaderboardUser.handles?.discord || '-'}</Text>
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -639,6 +678,39 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 20,
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  modalName: {
+    color: Colors.dark.text,
+    fontSize: 22,
+    fontWeight: '700' as const,
+  },
+  modalMeta: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  modalStat: {
+    color: Colors.dark.warning,
+    fontSize: 14,
+    fontWeight: '700' as const,
+    marginBottom: 6,
+  },
+  modalSubTitle: {
+    color: Colors.dark.text,
+    fontSize: 15,
+    fontWeight: '700' as const,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalHandle: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginBottom: 4,
   },
   leaderboardModalRow: {
     flexDirection: 'row',
