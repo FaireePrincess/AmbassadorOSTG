@@ -11,12 +11,49 @@ export const PLATFORM_ENGAGEMENT_WEIGHTS: Record<string, number> = {
   tiktok: 0.95,
   youtube: 0.85,
   facebook: 0.75,
+  telegram: 0.7,
 };
 
 export function normalizePlatform(platform?: string): Platform {
   if (!platform) return "twitter";
   if (platform === "x") return "twitter";
+  if (platform === "telegram") return "telegram";
+  if (platform === "instagram") return "instagram";
+  if (platform === "tiktok") return "tiktok";
+  if (platform === "youtube") return "youtube";
+  if (platform === "facebook") return "facebook";
   return platform as Platform;
+}
+
+export function isValidPlatformUrl(platform: Platform, rawUrl: string): boolean {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return false;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    return false;
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  switch (normalizePlatform(platform)) {
+    case "twitter":
+      return host === "twitter.com" || host === "x.com";
+    case "instagram":
+      return host === "instagram.com" || host.endsWith(".instagram.com");
+    case "tiktok":
+      return host === "tiktok.com" || host.endsWith(".tiktok.com");
+    case "youtube":
+      return host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be";
+    case "facebook":
+      return host === "facebook.com" || host === "fb.com" || host.endsWith(".facebook.com");
+    case "telegram":
+      return host === "t.me" || host === "telegram.me" || host.endsWith(".t.me");
+    default:
+      return true;
+  }
 }
 
 export function normalizeTwitterUrl(value: string): string {
@@ -103,6 +140,13 @@ export function computeEngagementScore(submission: Submission): number {
   const best = pickBestEngagementPlatform(submission);
   const capped = Math.min(20, Math.max(0, best.score));
   return Number(capped.toFixed(2));
+}
+
+export function computeXEngagementScoreFromImpressions(impressions: number): 5 | 10 | 15 | 20 {
+  if (impressions <= 1500) return 5;
+  if (impressions <= 5000) return 10;
+  if (impressions <= 10000) return 15;
+  return 20;
 }
 
 export function scoreBuckets(scores: number[]): Record<string, number> {

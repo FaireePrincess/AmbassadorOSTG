@@ -18,7 +18,7 @@ import ImagePicker from '@/components/ImagePicker';
 type FilterType = 'all' | 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook';
 type ImageInputMode = 'upload' | 'url';
 
-const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'];
+const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'telegram'];
 const INLINE_IMAGE_LIMIT_BYTES = 225_000;
 const TASK_IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop';
 

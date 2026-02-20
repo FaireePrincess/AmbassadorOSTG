@@ -184,11 +184,22 @@ export default function RegionalLeaderboardScreen() {
               </View>
 
               <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>Performance</Text>
+                <Text style={styles.detailItem}>Rank: #{selectedAmbassador.rank || '-'}</Text>
+                <Text style={styles.detailItem}>Points: {selectedAmbassador.points.toLocaleString()}</Text>
+                <Text style={styles.detailItem}>Tasks Completed: {selectedAmbassador.stats.completedTasks}</Text>
+                <Text style={styles.detailItem}>Approved Posts: {selectedAmbassador.stats.totalPosts}</Text>
+                <Text style={styles.detailItem}>Impressions: {selectedAmbassador.stats.totalImpressions.toLocaleString()}</Text>
+              </View>
+
+              <View style={styles.detailCard}>
                 <Text style={styles.detailTitle}>Social Handles</Text>
                 <Text style={styles.detailItem}>X: {selectedAmbassador.handles?.twitter || '-'}</Text>
                 <Text style={styles.detailItem}>Instagram: {selectedAmbassador.handles?.instagram || '-'}</Text>
                 <Text style={styles.detailItem}>TikTok: {selectedAmbassador.handles?.tiktok || '-'}</Text>
                 <Text style={styles.detailItem}>YouTube: {selectedAmbassador.handles?.youtube || '-'}</Text>
+                <Text style={styles.detailItem}>Facebook: {selectedAmbassador.handles?.facebook || '-'}</Text>
+                <Text style={styles.detailItem}>Telegram: {selectedAmbassador.handles?.telegram || '-'}</Text>
                 <Text style={styles.detailItem}>Discord: {selectedAmbassador.handles?.discord || '-'}</Text>
               </View>
             </ScrollView>

@@ -900,7 +900,7 @@ function UserSubmissionsScreen() {
             <View style={styles.editFormSection}>
               <Text style={styles.inputLabel}>Platform</Text>
               <View style={styles.editPlatformsRow}>
-                {(['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'] as Platform[]).map((platform) => (
+                {(['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'telegram'] as Platform[]).map((platform) => (
                   <PressableScale
                     key={platform}
                     style={[styles.editPlatformChip, editPlatform === platform && styles.editPlatformChipActive]}

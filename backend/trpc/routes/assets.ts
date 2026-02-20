@@ -103,7 +103,7 @@ export const assetsRouter = createTRPCRouter({
         thumbnail: z.string(),
         campaignId: z.string().optional(),
         campaignTitle: z.string().optional(),
-        platforms: z.array(z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook"])),
+        platforms: z.array(z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook", "telegram"])),
         format: z.string(),
         size: z.string(),
       })
@@ -145,7 +145,7 @@ export const assetsRouter = createTRPCRouter({
         thumbnail: z.string().optional(),
         campaignId: z.string().optional(),
         campaignTitle: z.string().optional(),
-        platforms: z.array(z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook"])).optional(),
+        platforms: z.array(z.enum(["twitter", "instagram", "tiktok", "youtube", "facebook", "telegram"])).optional(),
         format: z.string().optional(),
         size: z.string().optional(),
       })

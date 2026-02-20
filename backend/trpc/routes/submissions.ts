@@ -5,6 +5,8 @@ import { db } from "@/backend/db";
 import type { Submission, SubmissionStatus, Platform, AmbassadorPost, User, Task } from "@/types";
 import {
   computeEngagementScore,
+  computeXEngagementScoreFromImpressions,
+  isValidPlatformUrl,
   normalizePlatform,
   normalizeTwitterUrl,
   parseMultiLinks,
@@ -40,6 +42,9 @@ function ensurePlatformLinkPairing(links: Array<{ platform: Platform; url: strin
   for (const entry of links) {
     if (!entry.url?.trim()) {
       throw new Error(`Missing URL for platform ${entry.platform}`);
+    }
+    if (!isValidPlatformUrl(entry.platform, entry.url)) {
+      throw new Error(`Invalid URL for platform ${entry.platform}`);
     }
   }
 }
@@ -166,7 +171,7 @@ const ratingSchema = z.object({
 });
 
 const linkSchema = z.object({
-  platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook"]),
+  platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook", "telegram"]),
   url: z.string().min(1),
 });
 
@@ -203,9 +208,9 @@ export const submissionsRouter = createTRPCRouter({
       z.object({
         userId: z.string(),
         taskId: z.string(),
-        platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook"]).optional(),
+        platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook", "telegram"]).optional(),
         postUrl: z.string().optional(),
-        platforms: z.array(z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook"])).optional(),
+        platforms: z.array(z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook", "telegram"])).optional(),
         links: z.array(linkSchema).optional(),
         screenshotUrl: z.string().optional(),
         notes: z.string().optional(),
@@ -250,9 +255,9 @@ export const submissionsRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         userId: z.string(),
-        platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook"]).optional(),
+        platform: z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook", "telegram"]).optional(),
         postUrl: z.string().optional(),
-        platforms: z.array(z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook"])).optional(),
+        platforms: z.array(z.enum(["twitter", "x", "instagram", "tiktok", "youtube", "facebook", "telegram"])).optional(),
         links: z.array(linkSchema).optional(),
         screenshotUrl: z.string().optional(),
         notes: z.string().optional(),
@@ -330,13 +335,34 @@ export const submissionsRouter = createTRPCRouter({
 
       let nextRating = input.rating || submission.rating;
       if (isNowApproved && nextRating) {
-        const engagementScore = computeEngagementScore({ ...submission, metrics: nextMetrics });
-        const contentOnly = Math.max(0, (nextRating.totalScore || 0) - (nextRating.engagementScore || 0));
-        nextRating = {
-          ...nextRating,
-          engagementScore,
-          totalScore: Math.min(100, Number((contentOnly + engagementScore).toFixed(2))),
-        };
+        const links = parseMultiLinks(
+          normalizePlatform(submission.platform),
+          submission.postUrl,
+          submission.platforms,
+          submission.links
+        );
+        const hasTwitterLink = links.some((item) => normalizePlatform(item.platform) === "twitter");
+        const xImpressions = input.metrics?.impressions ?? submission.xImpressions;
+
+        if (hasTwitterLink && typeof xImpressions === "number") {
+          const currentEngagement = Math.max(0, Math.min(20, Math.trunc(nextRating.engagementScore || 0)));
+          const thresholdScore = computeXEngagementScoreFromImpressions(xImpressions);
+          const nextEngagement = Math.max(currentEngagement, thresholdScore);
+          const contentOnly = Math.max(0, (nextRating.totalScore || 0) - currentEngagement);
+          nextRating = {
+            ...nextRating,
+            engagementScore: nextEngagement,
+            totalScore: Math.min(100, Number((contentOnly + nextEngagement).toFixed(2))),
+          };
+        } else if (!hasTwitterLink) {
+          const engagementScore = computeEngagementScore({ ...submission, metrics: nextMetrics });
+          const contentOnly = Math.max(0, (nextRating.totalScore || 0) - (nextRating.engagementScore || 0));
+          nextRating = {
+            ...nextRating,
+            engagementScore,
+            totalScore: Math.min(100, Number((contentOnly + engagementScore).toFixed(2))),
+          };
+        }
       }
 
       let xTrackingExpiresAt = submission.xTrackingExpiresAt;

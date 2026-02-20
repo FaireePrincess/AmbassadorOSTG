@@ -32,6 +32,8 @@ export default function TaskDetailScreen() {
       currentUser?.handles?.instagram ||
       currentUser?.handles?.tiktok ||
       currentUser?.handles?.youtube ||
+      currentUser?.handles?.facebook ||
+      currentUser?.handles?.telegram ||
       currentUser?.handles?.discord
   );
   const blockedForSocialSetup =
@@ -269,12 +271,12 @@ export default function TaskDetailScreen() {
 
               {selectedPlatforms.map((platform) => (
                 <View key={platform}>
-                  <Text style={styles.inputLabel}>{platform.toUpperCase()} URL</Text>
+                  <Text style={styles.inputLabel}>{platform === 'twitter' ? 'X' : platform.toUpperCase()} URL</Text>
                   <View style={styles.inputContainer}>
                     <Link size={18} color={Colors.dark.textMuted} />
                     <TextInput
                       style={styles.input}
-                      placeholder={`https://${platform}.com/...`}
+                      placeholder={platform === 'telegram' ? 'https://t.me/...' : `https://${platform}.com/...`}
                       placeholderTextColor={Colors.dark.textMuted}
                       value={linkByPlatform[platform] || ''}
                       onChangeText={(value) =>

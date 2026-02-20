@@ -1,4 +1,4 @@
-export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook';
+export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'telegram';
 export type SubmissionStatus = 'pending' | 'approved' | 'needs_edits' | 'rejected';
 export type TaskStatus = 'active' | 'upcoming' | 'completed';
 export type EventType = 'irl' | 'online';
@@ -26,6 +26,8 @@ export interface User {
     instagram?: string;
     tiktok?: string;
     youtube?: string;
+    facebook?: string;
+    telegram?: string;
     discord?: string;
   };
   fslEmail?: string;

@@ -91,6 +91,8 @@ function sanitizeHandles(handles?: User["handles"]): User["handles"] {
     instagram: sanitizeHandleValue(handles.instagram),
     tiktok: sanitizeHandleValue(handles.tiktok),
     youtube: sanitizeHandleValue(handles.youtube),
+    facebook: sanitizeHandleValue(handles.facebook),
+    telegram: sanitizeHandleValue(handles.telegram),
     discord: sanitizeHandleValue(handles.discord),
   };
 }
@@ -267,6 +269,8 @@ export const usersRouter = createTRPCRouter({
           instagram: z.string().optional(),
           tiktok: z.string().optional(),
           youtube: z.string().optional(),
+          facebook: z.string().optional(),
+          telegram: z.string().optional(),
           discord: z.string().optional(),
         }).optional(),
       })
@@ -372,6 +376,8 @@ export const usersRouter = createTRPCRouter({
           instagram: z.string().optional(),
           tiktok: z.string().optional(),
           youtube: z.string().optional(),
+          facebook: z.string().optional(),
+          telegram: z.string().optional(),
           discord: z.string().optional(),
         }).optional(),
       })

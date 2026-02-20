@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Award, Zap } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
-import { useApp } from '@/contexts/AppContext';
+import { useApp, useUserSubmissions } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBackendEnabled } from '@/lib/trpc';
 import { normalizeAvatarUri } from '@/constants/avatarPresets';
@@ -20,11 +20,28 @@ export default function HomeScreen() {
   const { currentUser, users, refreshUsers } = useAuth();
   const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
   const backendEnabled = isBackendEnabled();
+  const userSubmissions = useUserSubmissions(currentUser?.id);
 
-  const activeTasks = useMemo(() => 
-    tasks.filter(t => t.status === 'active').slice(0, 3),
-    [tasks]
-  );
+  const activeTasksAll = useMemo(() => tasks.filter((task) => task.status === 'active'), [tasks]);
+  const activeTasks = useMemo(() => activeTasksAll.slice(0, 3), [activeTasksAll]);
+
+  const completedActiveTasks = useMemo(() => {
+    const completedTaskIdSet = new Set(
+      userSubmissions
+        .filter((submission) => submission.status !== 'rejected')
+        .map((submission) => submission.taskId)
+    );
+    return activeTasksAll.reduce(
+      (count, task) => (completedTaskIdSet.has(task.id) ? count + 1 : count),
+      0
+    );
+  }, [userSubmissions, activeTasksAll]);
+
+  const taskProgress = useMemo(() => {
+    const total = activeTasksAll.length;
+    if (total === 0) return 0;
+    return Math.min(1, Math.max(0, completedActiveTasks / total));
+  }, [activeTasksAll.length, completedActiveTasks]);
   
   const feedPosts = useMemo(() => {
     if (backendEnabled) {
@@ -63,7 +80,7 @@ export default function HomeScreen() {
         handles: u.handles,
         region: u.region,
         points: u.points,
-        posts: u.stats.totalPosts,
+        stats: u.stats,
       }))
       .sort((a, b) => b.points - a.points)
       .map((u, idx) => ({ ...u, rank: idx + 1 }));
@@ -178,6 +195,21 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Tasks Completed</Text>
+          <View style={styles.progressCard}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>
+                {activeTasksAll.length === 0
+                  ? 'No active tasks right now'
+                  : `${completedActiveTasks}/${activeTasksAll.length} active tasks completed`}
+              </Text>
+              <Text style={styles.progressPercent}>{Math.round(taskProgress * 100)}%</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.round(taskProgress * 100)}%` }]} />
+            </View>
+          </View>
+
           <Text style={styles.sectionTitle}>Your Performance</Text>
           <View style={styles.statsGrid}>
             <StatCard label="Posts" value={userStats.totalPosts} color={Colors.dark.primary} compact />
@@ -253,7 +285,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.leaderboardRight}>
                   <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
-                  <Text style={styles.leaderboardPosts}>{entry.posts} posts</Text>
+                  <Text style={styles.leaderboardPosts}>{entry.stats.totalPosts} posts</Text>
                 </View>
               </PressableScale>
             ))}
@@ -320,11 +352,17 @@ export default function HomeScreen() {
               <Text style={styles.modalMeta}>@{selectedLeaderboardUser.username || 'not-set'} • {selectedLeaderboardUser.region}</Text>
               <Text style={styles.modalStat}>Rank: #{selectedLeaderboardUser.rank}</Text>
               <Text style={styles.modalStat}>Points: {selectedLeaderboardUser.points.toLocaleString()}</Text>
+              <Text style={styles.modalSubTitle}>Performance</Text>
+              <Text style={styles.modalStat}>Tasks Completed: {selectedLeaderboardUser.stats.completedTasks}</Text>
+              <Text style={styles.modalStat}>Approved Posts: {selectedLeaderboardUser.stats.totalPosts}</Text>
+              <Text style={styles.modalStat}>Impressions: {selectedLeaderboardUser.stats.totalImpressions.toLocaleString()}</Text>
               <Text style={styles.modalSubTitle}>Social Handles</Text>
               <Text style={styles.modalHandle}>X: {selectedLeaderboardUser.handles?.twitter || '-'}</Text>
               <Text style={styles.modalHandle}>Instagram: {selectedLeaderboardUser.handles?.instagram || '-'}</Text>
               <Text style={styles.modalHandle}>TikTok: {selectedLeaderboardUser.handles?.tiktok || '-'}</Text>
               <Text style={styles.modalHandle}>YouTube: {selectedLeaderboardUser.handles?.youtube || '-'}</Text>
+              <Text style={styles.modalHandle}>Facebook: {selectedLeaderboardUser.handles?.facebook || '-'}</Text>
+              <Text style={styles.modalHandle}>Telegram: {selectedLeaderboardUser.handles?.telegram || '-'}</Text>
               <Text style={styles.modalHandle}>Discord: {selectedLeaderboardUser.handles?.discord || '-'}</Text>
             </View>
           )}
@@ -408,6 +446,44 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     padding: 20,
+  },
+  progressCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  progressLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+  },
+  progressPercent: {
+    fontSize: 12,
+    color: Colors.dark.primary,
+    fontWeight: '700' as const,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.dark.surfaceLight,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: Colors.dark.primary,
   },
   statsGrid: {
     flexDirection: 'row',

@@ -32,6 +32,9 @@ export default function ProfileScreen() {
   const [editTwitter, setEditTwitter] = useState(currentUser?.handles?.twitter || '');
   const [editInstagram, setEditInstagram] = useState(currentUser?.handles?.instagram || '');
   const [editTiktok, setEditTiktok] = useState(currentUser?.handles?.tiktok || '');
+  const [editYoutube, setEditYoutube] = useState(currentUser?.handles?.youtube || '');
+  const [editFacebook, setEditFacebook] = useState(currentUser?.handles?.facebook || '');
+  const [editTelegram, setEditTelegram] = useState(currentUser?.handles?.telegram || '');
   const [editDiscord, setEditDiscord] = useState(currentUser?.handles?.discord || '');
   const [editEmail, setEditEmail] = useState(currentUser?.email || '');
   const [editUsername, setEditUsername] = useState(currentUser?.username || '');
@@ -55,6 +58,20 @@ export default function ProfileScreen() {
     return `${((interactions / impressions) * 100).toFixed(1)}%`;
   }, [currentUser?.stats?.totalImpressions, currentUser?.stats?.totalLikes, currentUser?.stats?.totalRetweets]);
 
+  const approvedCount = useMemo(
+    () => sortedSubmissions.filter((submission) => submission.status === 'approved').length,
+    [sortedSubmissions]
+  );
+
+  const averageScore = useMemo(() => {
+    const approvedWithScore = sortedSubmissions.filter(
+      (submission) => submission.status === 'approved' && typeof submission.rating?.totalScore === 'number'
+    );
+    if (approvedWithScore.length === 0) return 0;
+    const total = approvedWithScore.reduce((sum, submission) => sum + (submission.rating?.totalScore || 0), 0);
+    return Number((total / approvedWithScore.length).toFixed(1));
+  }, [sortedSubmissions]);
+
   const handleRefresh = useCallback(() => {
     refreshData();
   }, [refreshData]);
@@ -65,6 +82,9 @@ export default function ProfileScreen() {
     setEditTwitter(currentUser.handles?.twitter || '');
     setEditInstagram(currentUser.handles?.instagram || '');
     setEditTiktok(currentUser.handles?.tiktok || '');
+    setEditYoutube(currentUser.handles?.youtube || '');
+    setEditFacebook(currentUser.handles?.facebook || '');
+    setEditTelegram(currentUser.handles?.telegram || '');
     setEditDiscord(currentUser.handles?.discord || '');
     setEditEmail(currentUser.email || '');
     setEditUsername(currentUser.username || '');
@@ -80,6 +100,9 @@ export default function ProfileScreen() {
     setEditTwitter(currentUser.handles?.twitter || '');
     setEditInstagram(currentUser.handles?.instagram || '');
     setEditTiktok(currentUser.handles?.tiktok || '');
+    setEditYoutube(currentUser.handles?.youtube || '');
+    setEditFacebook(currentUser.handles?.facebook || '');
+    setEditTelegram(currentUser.handles?.telegram || '');
     setEditDiscord(currentUser.handles?.discord || '');
     setEditEmail(currentUser.email || '');
     setEditUsername(currentUser.username || '');
@@ -147,6 +170,9 @@ export default function ProfileScreen() {
         twitter: cleanHandle(editTwitter),
         instagram: cleanHandle(editInstagram),
         tiktok: cleanHandle(editTiktok),
+        youtube: cleanHandle(editYoutube),
+        facebook: cleanHandle(editFacebook),
+        telegram: cleanHandle(editTelegram),
         discord: cleanHandle(editDiscord),
       },
     });
@@ -162,7 +188,7 @@ export default function ProfileScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsEditModalVisible(false);
     Alert.alert('Success', 'Profile updated successfully!');
-  }, [currentUser, editAvatar, editDiscord, editEmail, editFslEmail, editInstagram, editName, editRegion, editTiktok, editTwitter, editUsername, updateProfile]);
+  }, [currentUser, editAvatar, editDiscord, editEmail, editFacebook, editFslEmail, editInstagram, editName, editRegion, editTelegram, editTiktok, editTwitter, editUsername, editYoutube, updateProfile]);
 
   const selectRelativeAvatar = useCallback((direction: -1 | 1) => {
     const current = normalizeAvatarUri(editAvatar);
@@ -268,6 +294,7 @@ export default function ProfileScreen() {
           <View style={styles.profileSection}>
             <Image source={normalizeAvatarUri(user.avatar)} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
             <Text style={styles.userName} testID="profile-name">{user.name}</Text>
+            <Text style={styles.userHandle}>@{user.username || 'username'}</Text>
             <Text style={styles.userRole}>{user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')} • {user.region}</Text>
             <Text style={styles.buildLabel}>Build {buildLabel}</Text>
             
@@ -279,6 +306,25 @@ export default function ProfileScreen() {
               <View style={styles.pointsBadge}>
                 <Text style={styles.pointsValue}>{user.points.toLocaleString()}</Text>
                 <Text style={styles.pointsLabel}>Points</Text>
+              </View>
+            </View>
+
+            <View style={styles.profileOverviewGrid}>
+              <View style={styles.profileOverviewCard}>
+                <Text style={styles.profileOverviewValue}>{user.stats.completedTasks}</Text>
+                <Text style={styles.profileOverviewLabel}>Tasks</Text>
+              </View>
+              <View style={styles.profileOverviewCard}>
+                <Text style={styles.profileOverviewValue}>{approvedCount}</Text>
+                <Text style={styles.profileOverviewLabel}>Approved</Text>
+              </View>
+              <View style={styles.profileOverviewCard}>
+                <Text style={styles.profileOverviewValue}>{averageScore}</Text>
+                <Text style={styles.profileOverviewLabel}>Avg Score</Text>
+              </View>
+              <View style={styles.profileOverviewCard}>
+                <Text style={styles.profileOverviewValue}>{Math.round((user.stats.totalImpressions || 0) / 1000)}K</Text>
+                <Text style={styles.profileOverviewLabel}>Impressions</Text>
               </View>
             </View>
             <PressableScale style={styles.regionBoardBtn} onPress={() => router.push('/regional-leaderboard' as any)}>
@@ -328,6 +374,27 @@ export default function ProfileScreen() {
                 <ChevronRight size={16} color={Colors.dark.textMuted} />
               </View>
             )}
+            {user.handles?.youtube && (
+              <View style={styles.handleItem}>
+                <PlatformBadge platform="youtube" />
+                <Text style={styles.handleText}>{user.handles.youtube}</Text>
+                <ChevronRight size={16} color={Colors.dark.textMuted} />
+              </View>
+            )}
+            {user.handles?.facebook && (
+              <View style={styles.handleItem}>
+                <PlatformBadge platform="facebook" />
+                <Text style={styles.handleText}>{user.handles.facebook}</Text>
+                <ChevronRight size={16} color={Colors.dark.textMuted} />
+              </View>
+            )}
+            {user.handles?.telegram && (
+              <View style={styles.handleItem}>
+                <PlatformBadge platform="telegram" />
+                <Text style={styles.handleText}>{user.handles.telegram}</Text>
+                <ChevronRight size={16} color={Colors.dark.textMuted} />
+              </View>
+            )}
             {user.handles?.discord && (
               <View style={styles.handleItem}>
                 <View style={styles.discordBadge}>
@@ -346,7 +413,7 @@ export default function ProfileScreen() {
                 <ChevronRight size={16} color={Colors.dark.textMuted} />
               </View>
             )}
-            {!user.handles?.twitter && !user.handles?.instagram && !user.handles?.tiktok && !user.handles?.discord && !user.fslEmail && (
+            {!user.handles?.twitter && !user.handles?.instagram && !user.handles?.tiktok && !user.handles?.youtube && !user.handles?.facebook && !user.handles?.telegram && !user.handles?.discord && !user.fslEmail && (
               <PressableScale style={styles.addHandleBtn} onPress={openEditModal}>
                 <Text style={styles.addHandleText}>+ Add social accounts</Text>
               </PressableScale>
@@ -695,6 +762,54 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>YouTube</Text>
+              <View style={styles.inputContainer}>
+                <PlatformBadge platform="youtube" size="small" />
+                <TextInput
+                  style={styles.input}
+                  value={editYoutube}
+                  onChangeText={setEditYoutube}
+                  placeholder="@channel"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  testID="edit-youtube-input"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Facebook</Text>
+              <View style={styles.inputContainer}>
+                <PlatformBadge platform="facebook" size="small" />
+                <TextInput
+                  style={styles.input}
+                  value={editFacebook}
+                  onChangeText={setEditFacebook}
+                  placeholder="profile/page"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  testID="edit-facebook-input"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Telegram</Text>
+              <View style={styles.inputContainer}>
+                <PlatformBadge platform="telegram" size="small" />
+                <TextInput
+                  style={styles.input}
+                  value={editTelegram}
+                  onChangeText={setEditTelegram}
+                  placeholder="@handle"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  testID="edit-telegram-input"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Discord Username</Text>
               <View style={styles.inputContainer}>
                 <MessageCircle size={18} color="#5865F2" />
@@ -904,7 +1019,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700' as const,
     color: Colors.dark.text,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  userHandle: {
+    fontSize: 14,
+    color: Colors.dark.primary,
+    fontWeight: '600' as const,
+    marginBottom: 2,
   },
   userRole: {
     fontSize: 14,
@@ -919,6 +1040,7 @@ const styles = StyleSheet.create({
   rankContainer: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 12,
   },
   rankBadge: {
     flexDirection: 'row',
@@ -949,6 +1071,32 @@ const styles = StyleSheet.create({
   pointsLabel: {
     fontSize: 10,
     color: Colors.dark.textMuted,
+  },
+  profileOverviewGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  profileOverviewCard: {
+    width: '48%',
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  profileOverviewValue: {
+    fontSize: 16,
+    color: Colors.dark.text,
+    fontWeight: '700' as const,
+  },
+  profileOverviewLabel: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
   },
   regionBoardBtn: {
     marginTop: 12,

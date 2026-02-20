@@ -14,6 +14,7 @@ const platformConfig: Record<PlatformType, { label: string; color: string }> = {
   tiktok: { label: 'TT', color: '#00F2EA' },
   youtube: { label: 'YT', color: Colors.dark.youtube },
   facebook: { label: 'FB', color: Colors.dark.facebook },
+  telegram: { label: 'TG', color: Colors.dark.telegram },
 };
 
 export default function PlatformBadge({ platform, size = 'small' }: PlatformBadgeProps) {

@@ -53,6 +53,8 @@ export default function AdminScreen() {
   const [editUserInstagram, setEditUserInstagram] = useState('');
   const [editUserTiktok, setEditUserTiktok] = useState('');
   const [editUserYoutube, setEditUserYoutube] = useState('');
+  const [editUserFacebook, setEditUserFacebook] = useState('');
+  const [editUserTelegram, setEditUserTelegram] = useState('');
   const [editUserDiscord, setEditUserDiscord] = useState('');
   const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
 
@@ -212,6 +214,8 @@ export default function AdminScreen() {
     setEditUserInstagram(user?.handles?.instagram || '');
     setEditUserTiktok(user?.handles?.tiktok || '');
     setEditUserYoutube(user?.handles?.youtube || '');
+    setEditUserFacebook(user?.handles?.facebook || '');
+    setEditUserTelegram(user?.handles?.telegram || '');
     setEditUserDiscord(user?.handles?.discord || '');
     setIsEditUserModalVisible(true);
   }, [users]);
@@ -239,6 +243,8 @@ export default function AdminScreen() {
           instagram: editUserInstagram.trim() || undefined,
           tiktok: editUserTiktok.trim() || undefined,
           youtube: editUserYoutube.trim() || undefined,
+          facebook: editUserFacebook.trim() || undefined,
+          telegram: editUserTelegram.trim() || undefined,
           discord: editUserDiscord.trim() || undefined,
         },
       });
@@ -252,7 +258,7 @@ export default function AdminScreen() {
     } finally {
       setIsSavingUserEdit(false);
     }
-  }, [selectedUserForEdit, editUserEmail, editUserUsername, editUserRegion, editUserTwitter, editUserInstagram, editUserTiktok, editUserYoutube, editUserDiscord, refreshUsers, refreshAppData]);
+  }, [selectedUserForEdit, editUserEmail, editUserUsername, editUserRegion, editUserTwitter, editUserInstagram, editUserTiktok, editUserYoutube, editUserFacebook, editUserTelegram, editUserDiscord, refreshUsers, refreshAppData]);
 
   const handleResetPassword = useCallback(async () => {
     if (!selectedUserForReset) return;
@@ -874,6 +880,34 @@ export default function AdminScreen() {
                   value={editUserYoutube}
                   onChangeText={setEditUserYoutube}
                   placeholder="@channel"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Facebook</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserFacebook}
+                  onChangeText={setEditUserFacebook}
+                  placeholder="profile/page"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Telegram</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={editUserTelegram}
+                  onChangeText={setEditUserTelegram}
+                  placeholder="@handle"
                   placeholderTextColor={Colors.dark.textMuted}
                   autoCapitalize="none"
                 />

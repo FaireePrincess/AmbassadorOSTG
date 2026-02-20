@@ -55,6 +55,8 @@ function hasAtLeastOneSocial(user: User | null): boolean {
       user.handles?.instagram ||
       user.handles?.tiktok ||
       user.handles?.youtube ||
+      user.handles?.facebook ||
+      user.handles?.telegram ||
       user.handles?.discord
   );
 }

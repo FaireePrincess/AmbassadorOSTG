@@ -24,7 +24,7 @@ const assetTypeConfig: Record<AssetType, { icon: typeof FileImage; label: string
 };
 
 const ASSET_TYPES: AssetType[] = ['image', 'video', 'document', 'template'];
-const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook'];
+const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'telegram'];
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_GAP = 16;

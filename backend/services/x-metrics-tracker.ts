@@ -1,7 +1,7 @@
 import { db } from "@/backend/db";
 import type { Submission, User } from "@/types";
 import {
-  computeEngagementScore,
+  computeXEngagementScoreFromImpressions,
   detectAnomaly,
   extractTweetId,
   isWithinTrackingWindow,
@@ -318,14 +318,20 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
           xTrackingExpiresAt: expiry,
         };
 
-        const engagementScore = computeEngagementScore({ ...submission, metrics: nextMetrics });
-        if (submission.rating) {
-          const contentOnly = Math.max(0, (submission.rating.totalScore || 0) - (submission.rating.engagementScore || 0));
-          updatedSubmission.rating = {
-            ...submission.rating,
-            engagementScore,
-            totalScore: Math.min(100, Number((contentOnly + engagementScore).toFixed(2))),
-          };
+        if (submission.rating && typeof xMetrics.impressions === "number") {
+          const currentEngagement = Math.max(0, Math.min(20, Math.trunc(submission.rating.engagementScore || 0)));
+          const thresholdScore = computeXEngagementScoreFromImpressions(xMetrics.impressions);
+          const nextEngagement = Math.max(currentEngagement, thresholdScore);
+
+          // Do not rewrite scores unless threshold has actually increased.
+          if (nextEngagement !== currentEngagement) {
+            const contentOnly = Math.max(0, (submission.rating.totalScore || 0) - currentEngagement);
+            updatedSubmission.rating = {
+              ...submission.rating,
+              engagementScore: nextEngagement,
+              totalScore: Math.min(100, Number((contentOnly + nextEngagement).toFixed(2))),
+            };
+          }
         }
 
         const region = regionByUserId.get(submission.userId) || "Unknown";
