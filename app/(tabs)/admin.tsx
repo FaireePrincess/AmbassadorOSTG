@@ -13,7 +13,7 @@ import { Season, UserRole, UserStatus } from '@/types';
 import { DEFAULT_AVATAR_URI } from '@/constants/avatarPresets';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
-import { trpc, trpcClient } from '@/lib/trpc';
+import { trpcClient } from '@/lib/trpc';
 
 type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 
@@ -48,19 +48,6 @@ export default function AdminScreen() {
   const [editUserUsername, setEditUserUsername] = useState('');
   const [editUserRegion, setEditUserRegion] = useState('');
   const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
-  const xStatusQuery = trpc.admin.xMetricsStatus.useQuery(
-    { adminUserId: currentUser?.id || '' },
-    { enabled: Boolean(currentUser?.id && isAdmin), refetchInterval: 30000 }
-  );
-  const runXMetricsNowMutation = trpc.admin.runXMetricsNow.useMutation({
-    onSuccess: () => {
-      void xStatusQuery.refetch();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    onError: (error) => {
-      Alert.alert('X Metrics', error.message || 'Failed to run X metrics');
-    },
-  });
 
   const filteredUsers = users.filter(u => {
     if (u.id === currentUser?.id) return false;
@@ -388,33 +375,11 @@ export default function AdminScreen() {
         </PressableScale>
       </View>
 
-      <View style={styles.xStatusCard}>
-        <View style={styles.xStatusHeader}>
-          <Text style={styles.xStatusTitle}>X Metrics Status</Text>
-          <PressableScale
-            style={[styles.xStatusRunBtn, runXMetricsNowMutation.isPending && styles.xStatusRunBtnDisabled]}
-            onPress={() => {
-              if (!currentUser?.id) return;
-              runXMetricsNowMutation.mutate({ adminUserId: currentUser.id });
-            }}
-            disabled={runXMetricsNowMutation.isPending}
-          >
-            <Text style={styles.xStatusRunBtnText}>{runXMetricsNowMutation.isPending ? 'Running...' : 'Run Now'}</Text>
-          </PressableScale>
-        </View>
-        <Text style={styles.xStatusLine}>
-          API: {xStatusQuery.data?.configured ? 'Configured' : 'Missing TWITTER_BEARER_TOKEN'}
-        </Text>
-        <Text style={styles.xStatusLine}>Running: {xStatusQuery.data?.running ? 'Yes' : 'No'}</Text>
-        <Text style={styles.xStatusLine}>
-          Last run: {xStatusQuery.data?.lastRunAt ? new Date(xStatusQuery.data.lastRunAt).toLocaleString() : 'Never'}
-        </Text>
-        <Text style={styles.xStatusLine}>
-          Last batch: {xStatusQuery.data?.lastProcessed || 0} processed, {xStatusQuery.data?.lastErrors || 0} errors, {xStatusQuery.data?.lastRemaining || 0} remaining
-        </Text>
-        <Text style={styles.xStatusLine}>
-          Next run: {xStatusQuery.data?.nextScheduledRunAt ? new Date(xStatusQuery.data.nextScheduledRunAt).toLocaleString() : 'Pending'}
-        </Text>
+      <View style={styles.analyticsRow}>
+        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/x-metrics' as any)}>
+          <Text style={styles.analyticsBtnText}>X Metrics</Text>
+        </PressableScale>
+        <View style={{ flex: 1 }} />
       </View>
 
       <View style={styles.seasonCard}>
@@ -962,45 +927,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700' as const,
   },
-  xStatusCard: {
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginHorizontal: 20,
-    marginBottom: 14,
-    padding: 14,
-  },
-  xStatusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  xStatusTitle: {
-    color: Colors.dark.text,
-    fontSize: 15,
-    fontWeight: '700' as const,
-  },
-  xStatusRunBtn: {
-    backgroundColor: Colors.dark.primary,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  xStatusRunBtnDisabled: {
-    opacity: 0.6,
-  },
-  xStatusRunBtnText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '700' as const,
-  },
-  xStatusLine: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginBottom: 4,
-  },
   seasonCard: {
     backgroundColor: Colors.dark.surface,
     borderRadius: 14,
@@ -1226,7 +1152,7 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   bottomPadding: {
-    height: 20,
+    height: 120,
   },
   modalContainer: {
     flex: 1,
