@@ -16,6 +16,18 @@ const MAX_BATCH = 20;
 const FOLLOW_UP_DELAY_MS = 30 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type XMetricsStatus = {
+  configured: boolean;
+  running: boolean;
+  lastRunAt?: string;
+  lastReason?: string;
+  lastProcessed: number;
+  lastErrors: number;
+  lastRemaining: number;
+  lastDurationMs?: number;
+  nextScheduledRunAt?: string;
+};
+
 function getTwitterToken(): string | null {
   return process.env.TWITTER_BEARER_TOKEN || null;
 }
@@ -93,6 +105,13 @@ function canTrackSubmission(submission: Submission): boolean {
 
 let runInProgress = false;
 let followUpTimer: ReturnType<typeof setTimeout> | null = null;
+let xMetricsStatus: XMetricsStatus = {
+  configured: !!getTwitterToken(),
+  running: false,
+  lastProcessed: 0,
+  lastErrors: 0,
+  lastRemaining: 0,
+};
 
 function clearFollowUpTimer() {
   if (followUpTimer) {
@@ -125,6 +144,8 @@ export async function runXMetricsTrackingBatch(reason = "scheduled"): Promise<{ 
   }
 
   runInProgress = true;
+  xMetricsStatus.running = true;
+  xMetricsStatus.lastReason = reason;
   const startedAt = Date.now();
   console.log(`[XMetrics] Starting batch (${reason})`);
 
@@ -134,8 +155,14 @@ export async function runXMetricsTrackingBatch(reason = "scheduled"): Promise<{ 
 
   try {
     const token = getTwitterToken();
+    xMetricsStatus.configured = !!token;
     if (!token) {
       console.log("[XMetrics] Skipping: TWITTER_BEARER_TOKEN missing");
+      xMetricsStatus.lastRunAt = new Date().toISOString();
+      xMetricsStatus.lastProcessed = 0;
+      xMetricsStatus.lastErrors = 0;
+      xMetricsStatus.lastRemaining = 0;
+      xMetricsStatus.lastDurationMs = Date.now() - startedAt;
       return { processed: 0, remaining: 0, errors: 0 };
     }
 
@@ -221,10 +248,16 @@ export async function runXMetricsTrackingBatch(reason = "scheduled"): Promise<{ 
     }
 
     const durationMs = Date.now() - startedAt;
+    xMetricsStatus.lastRunAt = new Date().toISOString();
+    xMetricsStatus.lastProcessed = processed;
+    xMetricsStatus.lastErrors = errors;
+    xMetricsStatus.lastRemaining = remaining;
+    xMetricsStatus.lastDurationMs = durationMs;
     console.log(`[XMetrics] Batch complete processed=${processed} errors=${errors} remaining=${remaining} durationMs=${durationMs}`);
     return { processed, remaining, errors };
   } finally {
     runInProgress = false;
+    xMetricsStatus.running = false;
   }
 }
 
@@ -240,6 +273,7 @@ export function startXMetricsScheduler() {
 
   const scheduleNext = () => {
     const delay = nextDelayMs();
+    xMetricsStatus.nextScheduledRunAt = new Date(Date.now() + delay).toISOString();
     scheduleTimer = setTimeout(async () => {
       try {
         await runXMetricsTrackingBatch("daily");
@@ -255,4 +289,12 @@ export function startXMetricsScheduler() {
 
   void runXMetricsTrackingBatch("startup");
   scheduleNext();
+}
+
+export function getXMetricsStatus(): XMetricsStatus {
+  return {
+    ...xMetricsStatus,
+    configured: !!getTwitterToken(),
+    running: runInProgress,
+  };
 }

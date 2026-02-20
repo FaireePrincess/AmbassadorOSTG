@@ -8,7 +8,7 @@ import {
   getRegionalAnalytics,
   getRegionalLeaderboard,
 } from "@/backend/services/admin-analytics";
-import { runXMetricsTrackingBatch } from "@/backend/services/x-metrics-tracker";
+import { getXMetricsStatus, runXMetricsTrackingBatch } from "@/backend/services/x-metrics-tracker";
 import type { User } from "@/types";
 
 const USERS_COLLECTION = "users";
@@ -66,5 +66,12 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await ensureAdmin(input.adminUserId);
       return runXMetricsTrackingBatch("manual-admin");
+    }),
+
+  xMetricsStatus: publicProcedure
+    .input(z.object({ adminUserId: z.string() }))
+    .query(async ({ input }) => {
+      await ensureAdmin(input.adminUserId);
+      return getXMetricsStatus();
     }),
 });
