@@ -13,6 +13,7 @@ export interface User {
   name: string;
   avatar: string;
   email: string;
+  username?: string;
   password?: string;
   role: UserRole;
   region: string;
@@ -71,6 +72,7 @@ export interface Task {
   submissions: number;
   maxSubmissions?: number;
   assetIds?: string[];
+  requiredReferenceTweetUrl?: string;
 }
 
 export interface Asset {
@@ -131,7 +133,9 @@ export interface Submission {
   taskTitle: string;
   campaignTitle: string;
   platform: Platform;
+  platforms?: Platform[];
   postUrl: string;
+  links?: Array<{ platform: Platform; url: string }>;
   screenshotUrl?: string;
   notes?: string;
   status: SubmissionStatus;
@@ -145,6 +149,14 @@ export interface Submission {
     comments: number;
     shares: number;
   };
+  xImpressions?: number;
+  xLikes?: number;
+  xReplies?: number;
+  xReposts?: number;
+  xLastFetchedAt?: string;
+  xTrackingExpiresAt?: string;
+  flaggedForReview?: boolean;
+  flaggedReason?: string;
 }
 
 export interface AmbassadorPost {
@@ -177,4 +189,28 @@ export interface Season {
   closedByUserId?: string;
   closedByName?: string;
   resetUserCount?: number;
+}
+
+export interface Poll {
+  id: string;
+  title: string;
+  description?: string;
+  createdBy: string;
+  region?: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface PollOption {
+  id: string;
+  pollId: string;
+  label: string;
+}
+
+export interface PollVote {
+  id: string;
+  pollId: string;
+  optionId: string;
+  userId: string;
+  createdAt: string;
 }

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { UserPlus, Users, Shield, Clock, CheckCircle, XCircle, Copy, Mail, MapPin, X, Send, Trash2, Key, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -17,6 +18,7 @@ import { trpcClient } from '@/lib/trpc';
 type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 
 export default function AdminScreen() {
+  const router = useRouter();
   const { users, currentUser, isAdmin, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers } = useAuth();
   const { refreshData: refreshAppData } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -316,6 +318,15 @@ export default function AdminScreen() {
         >
           <UserPlus size={20} color="#FFF" />
           <Text style={styles.addButtonText}>Add User</Text>
+        </PressableScale>
+      </View>
+
+      <View style={styles.analyticsRow}>
+        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/analytics' as any)}>
+          <Text style={styles.analyticsBtnText}>Program Analytics</Text>
+        </PressableScale>
+        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/analytics/regions' as any)}>
+          <Text style={styles.analyticsBtnText}>Regional Analytics</Text>
         </PressableScale>
       </View>
 
@@ -751,6 +762,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFF',
+  },
+  analyticsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 12,
+  },
+  analyticsBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  analyticsBtnText: {
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   seasonCard: {
     backgroundColor: Colors.dark.surface,

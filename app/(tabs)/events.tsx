@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl, Modal, TextInput, ActivityIndicator } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar, Clock, MapPin, Users, Globe, Check, ExternalLink, Plus, Trash2, Edit3, X } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users, Globe, Check, ExternalLink, Plus, Trash2, Edit3, X, BarChart3 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 import { EventType, Event } from '@/types';
+import { trpc } from '@/lib/trpc';
 
 type FilterType = 'all' | EventType;
 
@@ -32,12 +33,53 @@ function eventSortTimestamp(event: Event): number {
 }
 
 export default function EventsScreen() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, currentUser } = useAuth();
   const { events, rsvpStates, updateRsvp, isRefreshing, refreshData, addEvent, updateEvent, deleteEvent } = useApp();
+  const trpcUtils = trpc.useUtils();
   const [activeFilter] = useState<FilterType>('all');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPollModalVisible, setIsPollModalVisible] = useState(false);
+  const [selectedPollId, setSelectedPollId] = useState<string | null>(null);
+  const [isCreatePollModalVisible, setIsCreatePollModalVisible] = useState(false);
+  const [pollForm, setPollForm] = useState({
+    title: '',
+    description: '',
+    expiresAt: '',
+    region: '',
+    optionsCsv: 'Yes,No',
+  });
+
+  const pollsQuery = trpc.polls.list.useQuery(
+    { region: currentUser?.region },
+    { enabled: Boolean(currentUser?.id) }
+  );
+  const pollResultsQuery = trpc.polls.results.useQuery(
+    { pollId: selectedPollId || '' },
+    { enabled: Boolean(selectedPollId && isPollModalVisible) }
+  );
+  const voteMutation = trpc.polls.vote.useMutation({
+    onSuccess: async () => {
+      if (selectedPollId) {
+        await pollResultsQuery.refetch();
+      }
+      await pollsQuery.refetch();
+    },
+  });
+  const createPollMutation = trpc.polls.create.useMutation({
+    onSuccess: async () => {
+      await pollsQuery.refetch();
+      setIsCreatePollModalVisible(false);
+      setPollForm({
+        title: '',
+        description: '',
+        expiresAt: '',
+        region: '',
+        optionsCsv: 'Yes,No',
+      });
+    },
+  });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -63,7 +105,62 @@ export default function EventsScreen() {
 
   const handleRefresh = useCallback(() => {
     refreshData();
-  }, [refreshData]);
+    void pollsQuery.refetch();
+  }, [refreshData, pollsQuery]);
+
+  const openPollModal = useCallback((pollId: string) => {
+    setSelectedPollId(pollId);
+    setIsPollModalVisible(true);
+  }, []);
+
+  const submitVote = useCallback(async (optionId: string) => {
+    if (!currentUser?.id || !selectedPollId) return;
+    try {
+      await voteMutation.mutateAsync({
+        userId: currentUser.id,
+        pollId: selectedPollId,
+        optionId,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Vote failed';
+      Alert.alert('Vote Failed', message);
+    }
+  }, [currentUser?.id, selectedPollId, voteMutation]);
+
+  const submitCreatePoll = useCallback(async () => {
+    if (!currentUser?.id) return;
+    const options = pollForm.optionsCsv
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (!pollForm.title.trim() || !pollForm.expiresAt.trim() || options.length < 2) {
+      Alert.alert('Error', 'Title, expiration, and at least 2 options are required');
+      return;
+    }
+
+    try {
+      const expiry = new Date(pollForm.expiresAt.trim());
+      if (Number.isNaN(expiry.getTime())) {
+        Alert.alert('Error', 'Use a valid date (e.g. 2026-03-01T18:00:00Z)');
+        return;
+      }
+
+      await createPollMutation.mutateAsync({
+        adminUserId: currentUser.id,
+        title: pollForm.title.trim(),
+        description: pollForm.description.trim() || undefined,
+        expiresAt: expiry.toISOString(),
+        region: pollForm.region.trim() || null,
+        options,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Create poll failed';
+      Alert.alert('Create Poll Failed', message);
+    }
+  }, [currentUser?.id, pollForm, createPollMutation]);
 
   const handleRSVP = useCallback((eventId: string, eventTitle: string) => {
     const isCurrentlyRsvped = rsvpStates[eventId];
@@ -249,6 +346,48 @@ export default function EventsScreen() {
           />
         }
       >
+        <View style={styles.pollsSection}>
+          <View style={styles.pollsHeader}>
+            <View>
+              <Text style={styles.pollsTitle}>Polls</Text>
+              <Text style={styles.pollsSubtitle}>Vote on community decisions</Text>
+            </View>
+            {isAdmin && (
+              <PressableScale style={styles.pollCreateBtn} onPress={() => setIsCreatePollModalVisible(true)}>
+                <Plus size={14} color="#FFF" />
+                <Text style={styles.pollCreateBtnText}>Create</Text>
+              </PressableScale>
+            )}
+          </View>
+
+          {pollsQuery.isLoading ? (
+            <View style={styles.pollLoading}>
+              <ActivityIndicator color={Colors.dark.primary} />
+            </View>
+          ) : pollsQuery.data && pollsQuery.data.length > 0 ? (
+            <View style={styles.pollCards}>
+              {pollsQuery.data.map((poll) => (
+                <View key={poll.id} style={styles.pollCard}>
+                  <Text style={styles.pollCardTitle}>{poll.title}</Text>
+                  {!!poll.description && <Text style={styles.pollCardDescription}>{poll.description}</Text>}
+                  <Text style={styles.pollCardMeta}>
+                    Expires {new Date(poll.expiresAt).toLocaleString()}
+                    {poll.region ? ` • ${poll.region}` : ' • Global'}
+                  </Text>
+                  <PressableScale style={styles.pollVoteBtn} onPress={() => openPollModal(poll.id)}>
+                    <BarChart3 size={14} color={Colors.dark.primary} />
+                    <Text style={styles.pollVoteBtnText}>Vote / Results</Text>
+                  </PressableScale>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.pollEmpty}>
+              <Text style={styles.pollEmptyText}>No active polls right now.</Text>
+            </View>
+          )}
+        </View>
+
         {filteredEvents.length === 0 ? (
           <EmptyState
             icon={Calendar}
@@ -525,6 +664,140 @@ export default function EventsScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal
+        visible={isPollModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsPollModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setIsPollModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Poll</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {pollResultsQuery.isLoading ? (
+              <View style={styles.pollLoading}>
+                <ActivityIndicator color={Colors.dark.primary} />
+              </View>
+            ) : pollResultsQuery.data ? (
+              <View style={styles.pollResultWrap}>
+                <Text style={styles.pollResultTitle}>{pollResultsQuery.data.poll.title}</Text>
+                {!!pollResultsQuery.data.poll.description && (
+                  <Text style={styles.pollResultDescription}>{pollResultsQuery.data.poll.description}</Text>
+                )}
+                {pollResultsQuery.data.options.map((option) => {
+                  const percent = pollResultsQuery.data.totalVotes > 0
+                    ? (option.votes / pollResultsQuery.data.totalVotes) * 100
+                    : 0;
+                  return (
+                    <View key={option.id} style={styles.pollResultCard}>
+                      <View style={styles.pollResultTop}>
+                        <Text style={styles.pollOptionLabel}>{option.label}</Text>
+                        <Text style={styles.pollOptionVotes}>{option.votes} votes</Text>
+                      </View>
+                      <View style={styles.pollProgressTrack}>
+                        <View style={[styles.pollProgressFill, { width: `${Math.max(4, percent)}%` }]} />
+                      </View>
+                      <PressableScale
+                        style={styles.pollActionBtn}
+                        onPress={() => submitVote(option.id)}
+                        disabled={voteMutation.isPending}
+                      >
+                        <Text style={styles.pollActionBtnText}>
+                          {voteMutation.isPending ? 'Submitting...' : 'Vote for this option'}
+                        </Text>
+                      </PressableScale>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.pollEmpty}>
+                <Text style={styles.pollEmptyText}>Unable to load poll.</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isCreatePollModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsCreatePollModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setIsCreatePollModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Create Poll</Text>
+            <PressableScale onPress={submitCreatePoll} disabled={createPollMutation.isPending}>
+              <Check size={24} color={createPollMutation.isPending ? Colors.dark.textMuted : Colors.dark.primary} />
+            </PressableScale>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={pollForm.title}
+                onChangeText={(text) => setPollForm((prev) => ({ ...prev, title: text }))}
+                placeholder="Poll title"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={pollForm.description}
+                onChangeText={(text) => setPollForm((prev) => ({ ...prev, description: text }))}
+                placeholder="Optional context"
+                placeholderTextColor={Colors.dark.textMuted}
+                multiline
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Expires At (ISO) *</Text>
+              <TextInput
+                style={styles.input}
+                value={pollForm.expiresAt}
+                onChangeText={(text) => setPollForm((prev) => ({ ...prev, expiresAt: text }))}
+                placeholder="2026-03-01T18:00:00Z"
+                placeholderTextColor={Colors.dark.textMuted}
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Region</Text>
+              <TextInput
+                style={styles.input}
+                value={pollForm.region}
+                onChangeText={(text) => setPollForm((prev) => ({ ...prev, region: text }))}
+                placeholder="Leave empty for global poll"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Options (comma-separated) *</Text>
+              <TextInput
+                style={styles.input}
+                value={pollForm.optionsCsv}
+                onChangeText={(text) => setPollForm((prev) => ({ ...prev, optionsCsv: text }))}
+                placeholder="Yes, No, Maybe"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -566,6 +839,161 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFF',
+  },
+  pollsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  pollsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  pollsTitle: {
+    color: Colors.dark.text,
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  pollsSubtitle: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  pollCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  pollCreateBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  pollCards: {
+    gap: 10,
+  },
+  pollCard: {
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 14,
+    padding: 12,
+  },
+  pollCardTitle: {
+    color: Colors.dark.text,
+    fontSize: 15,
+    fontWeight: '700' as const,
+  },
+  pollCardDescription: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginTop: 4,
+  },
+  pollCardMeta: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginTop: 6,
+  },
+  pollVoteBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: Colors.dark.primary + '12',
+  },
+  pollVoteBtnText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  pollLoading: {
+    minHeight: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pollEmpty: {
+    minHeight: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    backgroundColor: Colors.dark.surface,
+  },
+  pollEmptyText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+  },
+  pollResultWrap: {
+    paddingBottom: 24,
+  },
+  pollResultTitle: {
+    color: Colors.dark.text,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    marginBottom: 6,
+  },
+  pollResultDescription: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  pollResultCard: {
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  pollResultTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  pollOptionLabel: {
+    color: Colors.dark.text,
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  pollOptionVotes: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+  },
+  pollProgressTrack: {
+    backgroundColor: Colors.dark.surfaceLight,
+    height: 8,
+    borderRadius: 99,
+    overflow: 'hidden',
+  },
+  pollProgressFill: {
+    backgroundColor: Colors.dark.primary,
+    height: 8,
+    borderRadius: 99,
+  },
+  pollActionBtn: {
+    marginTop: 10,
+    backgroundColor: Colors.dark.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  pollActionBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   filterScroll: {
     maxHeight: 50,

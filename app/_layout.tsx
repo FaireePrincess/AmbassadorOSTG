@@ -57,6 +57,7 @@ function RootLayoutNav() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="task/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="regional-leaderboard" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

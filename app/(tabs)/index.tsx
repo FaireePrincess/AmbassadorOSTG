@@ -218,10 +218,15 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Leaderboard</Text>
-            <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)} activeOpacity={0.8}>
-              <Text style={styles.seeAllText}>{showLeaderboardExpanded ? 'Top 5' : 'Full Board'}</Text>
-              <ChevronRight size={16} color={Colors.dark.primary} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <PressableScale style={styles.regionalBtn} onPress={() => router.push('/regional-leaderboard' as any)}>
+                <Text style={styles.regionalBtnText}>Regional</Text>
+              </PressableScale>
+              <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)} activeOpacity={0.8}>
+                <Text style={styles.seeAllText}>{showLeaderboardExpanded ? 'Top 5' : 'Full Board'}</Text>
+                <ChevronRight size={16} color={Colors.dark.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.leaderboardCard}>
@@ -384,6 +389,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700' as const,
     color: Colors.dark.text,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  regionalBtn: {
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: Colors.dark.primary + '18',
+  },
+  regionalBtnText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   seeAllBtn: {
     flexDirection: 'row',

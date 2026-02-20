@@ -74,6 +74,7 @@ export const tasksRouter = createTRPCRouter({
         deadline: z.string(),
         points: z.number(),
         maxSubmissions: z.number().optional(),
+        requiredReferenceTweetUrl: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -96,6 +97,7 @@ export const tasksRouter = createTRPCRouter({
         status: "active" as TaskStatus,
         submissions: 0,
         maxSubmissions: input.maxSubmissions,
+        requiredReferenceTweetUrl: input.requiredReferenceTweetUrl,
       };
       
       await db.create(COLLECTION, newTask);
@@ -120,6 +122,7 @@ export const tasksRouter = createTRPCRouter({
         points: z.number().optional(),
         status: z.enum(["active", "upcoming", "completed"]).optional(),
         maxSubmissions: z.number().optional(),
+        requiredReferenceTweetUrl: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

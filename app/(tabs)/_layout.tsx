@@ -2,12 +2,14 @@ import { Tabs, Redirect } from 'expo-router';
 import { Home, ListTodo, FolderOpen, Calendar, User, Shield, FileCheck } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
   const { isAdmin, isLoading, isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (isLoading) {
     return (
@@ -31,8 +33,8 @@ export default function TabLayout() {
           borderTopColor: Colors.dark.tabBarBorder,
           borderTopWidth: 1,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 14 : 10),
+          height: 64 + Math.max(insets.bottom, Platform.OS === 'ios' ? 14 : 10),
         },
         tabBarLabelStyle: {
           fontSize: 11,

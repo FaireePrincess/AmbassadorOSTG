@@ -28,6 +28,9 @@ interface AuthContextType {
     avatar?: string;
     handles?: User['handles'];
     fslEmail?: string;
+    region?: string;
+    email?: string;
+    username?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   changePassword: (userId: string, newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsers: () => Promise<void>;
@@ -488,6 +491,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     avatar?: string;
     handles?: User['handles'];
     fslEmail?: string;
+    region?: string;
+    email?: string;
+    username?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     if (!currentUser) {
       return { success: false, error: 'No active user session' };
@@ -499,6 +505,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const updated = await trpcClient.users.update.mutate({
           id: currentUser.id,
           name: updates.name,
+          email: updates.email,
+          username: updates.username,
+          region: updates.region,
           avatar: normalizedAvatar,
           handles: updates.handles,
           fslEmail: updates.fslEmail,

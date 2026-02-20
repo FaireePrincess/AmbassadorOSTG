@@ -261,6 +261,10 @@ export default function ProfileScreen() {
                 <Text style={styles.pointsLabel}>Points</Text>
               </View>
             </View>
+            <PressableScale style={styles.regionBoardBtn} onPress={() => router.push('/regional-leaderboard' as any)}>
+              <Text style={styles.regionBoardBtnText}>Open Regional Leaderboard</Text>
+              <ChevronRight size={16} color={Colors.dark.primary} />
+            </PressableScale>
           </View>
         </View>
 
@@ -875,6 +879,23 @@ const styles = StyleSheet.create({
   pointsLabel: {
     fontSize: 10,
     color: Colors.dark.textMuted,
+  },
+  regionBoardBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.dark.primary + '12',
+  },
+  regionBoardBtnText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   handlesSection: {
     paddingHorizontal: 20,

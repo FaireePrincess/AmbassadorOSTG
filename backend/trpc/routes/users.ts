@@ -32,6 +32,22 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+}
+
+function toUniqueUsername(base: string, users: User[]): string {
+  const normalizedBase = normalizeUsername(base) || "user";
+  if (!users.some((u) => normalizeUsername(u.username || "") === normalizedBase)) {
+    return normalizedBase;
+  }
+  let suffix = 1;
+  while (users.some((u) => normalizeUsername(u.username || "") === `${normalizedBase}${suffix}`)) {
+    suffix += 1;
+  }
+  return `${normalizedBase}${suffix}`;
+}
+
 function resolveEmailCandidates(email: string): string[] {
   const normalized = normalizeEmail(email);
   const candidates = new Set([normalized]);
@@ -50,6 +66,12 @@ function resolveEmailCandidates(email: string): string[] {
 function userMatchesEmail(user: User, email: string): boolean {
   const candidates = resolveEmailCandidates(email);
   return candidates.includes(normalizeEmail(user.email));
+}
+
+function userMatchesIdentifier(user: User, identifier: string): boolean {
+  const normalized = normalizeEmail(identifier);
+  const username = normalizeUsername(identifier);
+  return userMatchesEmail(user, normalized) || normalizeUsername(user.username || "") === username;
 }
 
 function safeNumber(value: unknown): number {
@@ -86,6 +108,7 @@ function sanitizeUser(user: User): User {
     ...user,
     avatar: sanitizeAvatar(user.avatar),
     email: normalizeEmail(user.email),
+    username: user.username ? normalizeUsername(user.username) : undefined,
     handles: sanitizeHandles(user.handles),
     points: safeNumber(user.points),
     rank: safeNumber(user.rank),
@@ -162,13 +185,14 @@ export const usersRouter = createTRPCRouter({
     }),
 
   login: publicProcedure
-    .input(z.object({ email: z.string(), password: z.string() }))
+    .input(z.object({ email: z.string().optional(), identifier: z.string().optional(), password: z.string() }))
     .mutation(async ({ input }) => {
-      const normalizedEmail = normalizeEmail(input.email);
-      console.log("[Users] Login attempt for:", normalizedEmail);
+      const identifier = (input.identifier || input.email || "").trim();
+      if (!identifier) throw new Error("Email or username is required");
+      console.log("[Users] Login attempt for:", identifier);
       const users = await getUsers();
       const user = users.find(
-        (u) => userMatchesEmail(u, normalizedEmail) && u.password === input.password
+        (u) => userMatchesIdentifier(u, identifier) && u.password === input.password
       );
       if (!user) {
         throw new Error("Invalid credentials");
@@ -236,6 +260,7 @@ export const usersRouter = createTRPCRouter({
         email: z.string(),
         role: z.enum(["ambassador", "regional_lead", "admin"]),
         region: z.string(),
+        username: z.string().optional(),
         fslEmail: z.string().optional(),
         handles: z.object({
           twitter: z.string().optional(),
@@ -249,8 +274,15 @@ export const usersRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const inviteCode = `FSL${Date.now().toString(36).toUpperCase()}`;
       const normalizedEmail = normalizeEmail(input.email);
+      const requestedUsername = input.username ? normalizeUsername(input.username) : "";
       const users = await getUsers(true);
       const existing = users.find((u) => userMatchesEmail(u, normalizedEmail));
+      if (requestedUsername) {
+        const existingUsername = users.find((u) => normalizeUsername(u.username || "") === requestedUsername);
+        if (existingUsername) {
+          throw new Error("Username already in use");
+        }
+      }
 
       if (existing) {
         if (existing.status === "active") {
@@ -284,11 +316,16 @@ export const usersRouter = createTRPCRouter({
         return sanitizeUser(refreshedUser);
       }
 
+      const username = requestedUsername
+        ? toUniqueUsername(requestedUsername, users)
+        : toUniqueUsername(normalizedEmail.split("@")[0] || `user${Date.now()}`, users);
+
       const newUser: User = {
         id: `user-${Date.now()}`,
         name: input.name,
         avatar: sanitizeAvatar(DEFAULT_AVATAR),
         email: normalizedEmail,
+        username,
         role: input.role as UserRole,
         region: input.region,
         fslEmail: input.fslEmail,
@@ -324,6 +361,7 @@ export const usersRouter = createTRPCRouter({
         id: z.string(),
         name: z.string().optional(),
         email: z.string().optional(),
+        username: z.string().optional(),
         avatar: z.string().optional(),
         role: z.enum(["ambassador", "regional_lead", "admin"]).optional(),
         region: z.string().optional(),
@@ -347,13 +385,29 @@ export const usersRouter = createTRPCRouter({
       }
       
       const baseUser = users[index];
+      const nextEmail = input.email !== undefined ? normalizeEmail(input.email) : baseUser.email;
+      const nextUsername = input.username !== undefined ? normalizeUsername(input.username) : baseUser.username;
+
+      const emailConflict = users.find((u) => u.id !== input.id && userMatchesEmail(u, nextEmail));
+      if (emailConflict) {
+        throw new Error("Email already in use");
+      }
+      if (nextUsername) {
+        const usernameConflict = users.find(
+          (u) => u.id !== input.id && normalizeUsername(u.username || "") === nextUsername
+        );
+        if (usernameConflict) {
+          throw new Error("Username already in use");
+        }
+      }
       const mergedHandles = input.handles
         ? sanitizeHandles({ ...baseUser.handles, ...input.handles })
         : sanitizeHandles(baseUser.handles);
       const updatedUser = sanitizeUser({
         ...baseUser,
         ...input,
-        email: input.email !== undefined ? normalizeEmail(input.email) : baseUser.email,
+        email: nextEmail,
+        username: nextUsername,
         avatar: sanitizeAvatar(input.avatar ?? baseUser.avatar),
         handles: mergedHandles,
         fslEmail:
@@ -414,13 +468,13 @@ export const usersRouter = createTRPCRouter({
     }),
 
   getLeaderboard: publicProcedure
-    .input(z.object({ limit: z.number().optional() }).optional())
+    .input(z.object({ limit: z.number().optional(), region: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit || 10;
       console.log("[Users] Fetching leaderboard, limit:", limit);
       const users = await getUsers();
       const sortedUsers = [...users]
-        .filter((u) => u.role !== "admin" && u.status === "active")
+        .filter((u) => u.role !== "admin" && u.status === "active" && (!input?.region || u.region === input.region))
         .sort((a, b) => b.points - a.points)
         .slice(0, limit)
         .map((u, i) => ({
