@@ -8,8 +8,8 @@ export default {
     text: '#FFFFFF',
     textSecondary: '#9CA3AF',
     textMuted: '#6B7280',
-    primary: '#7CFF2B',
-    primaryLight: '#B2FF78',
+    primary: '#8B5CF6',
+    primaryLight: '#A78BFA',
     secondary: '#06B6D4',
     secondaryLight: '#22D3EE',
     accent: '#F472B6',
@@ -25,6 +25,6 @@ export default {
     tabBar: '#0D0D12',
     tabBarBorder: '#1E1E2A',
     tabIconDefault: '#6B7280',
-    tabIconSelected: '#7CFF2B',
+    tabIconSelected: '#8B5CF6',
   },
 };
