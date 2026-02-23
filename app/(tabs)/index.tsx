@@ -320,7 +320,7 @@ export default function HomeScreen() {
               <Image
                 source={latestNews.imageUrl}
                 style={styles.newsImage}
-                contentFit="cover"
+                contentFit="contain"
                 cachePolicy="memory-disk"
                 transition={0}
               />
@@ -517,10 +517,11 @@ const styles = StyleSheet.create({
   newsImage: {
     marginTop: 10,
     width: '100%',
-    height: 132,
+    height: 104,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surfaceLight,
   },
   section: {
     paddingHorizontal: 20,
