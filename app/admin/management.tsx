@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { UserPlus, Users, Shield, Clock, CheckCircle, XCircle, Copy, Mail, MapPin, X, Send, Trash2, Key, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { regions } from '@/mocks/data';
@@ -14,12 +15,15 @@ import { DEFAULT_AVATAR_URI } from '@/constants/avatarPresets';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 import { trpcClient } from '@/lib/trpc';
+import AppBackButton from '@/components/AppBackButton';
+import AppButton from '@/components/AppButton';
 
 type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 type AdminSectionTab = 'ambassadors' | 'season';
 
 export default function AdminScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
+  const router = useRouter();
   const { users, currentUser, isAdmin, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers } = useAuth();
   const { refreshData: refreshAppData } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -389,20 +393,21 @@ export default function AdminScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {activeAdminSectionTab === 'season' ? 'Season Control' : 'User Management'}
-        </Text>
+        <View style={styles.headerMain}>
+          <AppBackButton onPress={() => router.push('/(tabs)/admin' as any)} label="Admin" />
+          <Text style={styles.headerTitle}>
+            {activeAdminSectionTab === 'season' ? 'Season Control' : 'User Management'}
+          </Text>
+        </View>
         {activeAdminSectionTab === 'ambassadors' ? (
-          <PressableScale
-            style={styles.addButton}
+          <AppButton
+            label="Add User"
+            size="sm"
             onPress={() => setIsCreateModalVisible(true)}
-            hapticType="medium"
-            testID="add-user-btn"
-          >
-            <UserPlus size={20} color="#FFF" />
-            <Text style={styles.addButtonText}>Add User</Text>
-          </PressableScale>
+            icon={<UserPlus size={16} color="#FFF" />}
+          />
         ) : <View style={{ width: 92 }} />}
       </View>
 
@@ -1027,9 +1032,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  headerMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   addButton: {

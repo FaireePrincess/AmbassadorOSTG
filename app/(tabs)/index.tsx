@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   newsCard: {
-    marginTop: 14,
+    marginTop: 0,
     backgroundColor: Colors.dark.surface,
     borderRadius: 14,
     borderWidth: 1,
@@ -497,8 +497,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   newsHeader: {
-    marginTop: 14,
-    marginBottom: 8,
+    marginTop: 16,
+    marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
   newsImage: {
     marginTop: 10,
     width: '100%',
-    height: 170,
+    height: 132,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.dark.border,
