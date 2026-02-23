@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TextInput, Alert, RefreshControl, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FileCheck, Clock, CheckCircle, XCircle, Edit3, ExternalLink, Star, X, Users, MessageSquare, TrendingUp, AlertCircle, RotateCcw, RefreshCw, Eye, Heart, Repeat, MessageCircle } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { FileCheck, Clock, CheckCircle, XCircle, Edit3, ExternalLink, Star, X, Users, MessageSquare, TrendingUp, AlertCircle, RotateCcw, RefreshCw, Eye, Heart, Repeat, MessageCircle, ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ const RATING_CRITERIA = [
 ] as const;
 
 function AdminReviewScreen() {
+  const router = useRouter();
   const { users, refreshUsers } = useAuth();
   const { allSubmissions, reviewSubmission, isRefreshing, refreshData, deleteSubmission } = useApp();
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
@@ -207,7 +209,13 @@ function AdminReviewScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Review Submissions</Text>
+        <View style={styles.headerMain}>
+          <PressableScale style={styles.backBtn} onPress={() => router.push('/(tabs)/admin' as any)}>
+            <ChevronLeft size={16} color={Colors.dark.text} />
+            <Text style={styles.backBtnText}>Admin</Text>
+          </PressableScale>
+          <Text style={styles.headerTitle}>Review Submissions</Text>
+        </View>
         <View style={styles.headerStats}>
           <View style={styles.statBadge}>
             <Clock size={14} color={Colors.dark.warning} />
@@ -970,6 +978,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  headerMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  backBtnText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
   headerTitle: {
     fontSize: 24,

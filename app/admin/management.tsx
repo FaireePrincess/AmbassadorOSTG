@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, Modal, RefreshControl, KeyboardAvoidingView, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { UserPlus, Users, Shield, Clock, CheckCircle, XCircle, Copy, Mail, MapPin, X, Send, Trash2, Key, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -19,7 +19,6 @@ type FilterTab = 'all' | 'pending' | 'active' | 'suspended';
 type AdminSectionTab = 'ambassadors' | 'season';
 
 export default function AdminScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const { users, currentUser, isAdmin, createUser, updateUserStatus, deleteUser, changePassword, refreshUsers } = useAuth();
   const { refreshData: refreshAppData } = useApp();
@@ -391,53 +390,20 @@ export default function AdminScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>User Management</Text>
-        <PressableScale 
-          style={styles.addButton} 
-          onPress={() => setIsCreateModalVisible(true)}
-          hapticType="medium"
-          testID="add-user-btn"
-        >
-          <UserPlus size={20} color="#FFF" />
-          <Text style={styles.addButtonText}>Add User</Text>
-        </PressableScale>
-      </View>
-
-      <View style={styles.analyticsRow}>
-        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/analytics' as any)}>
-          <Text style={styles.analyticsBtnText}>Program Analytics</Text>
-        </PressableScale>
-        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/analytics/regions' as any)}>
-          <Text style={styles.analyticsBtnText}>Regional Dashboard</Text>
-        </PressableScale>
-      </View>
-
-      <View style={styles.analyticsRow}>
-        <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/x-metrics' as any)}>
-          <Text style={styles.analyticsBtnText}>X Metrics</Text>
-        </PressableScale>
-        <View style={{ flex: 1 }} />
-      </View>
-
-      <View style={styles.sectionTabsRow}>
-        <PressableScale
-          style={[styles.sectionTabBtn, activeAdminSectionTab === 'ambassadors' && styles.sectionTabBtnActive]}
-          onPress={() => setActiveAdminSectionTab('ambassadors')}
-          hapticType="selection"
-        >
-          <Text style={[styles.sectionTabText, activeAdminSectionTab === 'ambassadors' && styles.sectionTabTextActive]}>
-            Ambassadors
-          </Text>
-        </PressableScale>
-        <PressableScale
-          style={[styles.sectionTabBtn, activeAdminSectionTab === 'season' && styles.sectionTabBtnActive]}
-          onPress={() => setActiveAdminSectionTab('season')}
-          hapticType="selection"
-        >
-          <Text style={[styles.sectionTabText, activeAdminSectionTab === 'season' && styles.sectionTabTextActive]}>
-            Season Control
-          </Text>
-        </PressableScale>
+        <Text style={styles.headerTitle}>
+          {activeAdminSectionTab === 'season' ? 'Season Control' : 'User Management'}
+        </Text>
+        {activeAdminSectionTab === 'ambassadors' ? (
+          <PressableScale
+            style={styles.addButton}
+            onPress={() => setIsCreateModalVisible(true)}
+            hapticType="medium"
+            testID="add-user-btn"
+          >
+            <UserPlus size={20} color="#FFF" />
+            <Text style={styles.addButtonText}>Add User</Text>
+          </PressableScale>
+        ) : <View style={{ width: 92 }} />}
       </View>
 
       {activeAdminSectionTab === 'ambassadors' ? (

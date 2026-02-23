@@ -1,5 +1,5 @@
 import { Tabs, Redirect } from 'expo-router';
-import { Home, ListTodo, FolderOpen, Calendar, User, Shield, FileCheck } from 'lucide-react-native';
+import { Home, ListTodo, FolderOpen, Calendar, User, Shield, FileCheck, Trophy } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -85,6 +85,13 @@ export default function TabLayout() {
           title: 'Review',
           tabBarIcon: ({ color, size }) => <FileCheck size={size} color={color} />,
           href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: 'Leaderboard',
+          tabBarIcon: ({ color, size }) => <Trophy size={size} color={color} />,
         }}
       />
       <Tabs.Screen

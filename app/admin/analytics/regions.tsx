@@ -94,20 +94,12 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function AdminRegionalAnalyticsScreen() {
-  const { users, isLoading: authLoading, isAdmin } = useAuth();
+  const { users, isLoading: authLoading } = useAuth();
   const { submissions, isLoading: appLoading } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedWindow, setSelectedWindow] = useState<WindowKey>('30d');
   const [customStartInput, setCustomStartInput] = useState('');
   const [customEndInput, setCustomEndInput] = useState('');
-
-  if (!isAdmin) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.error}>Admin access required.</Text>
-      </SafeAreaView>
-    );
-  }
 
   if (authLoading || appLoading) {
     return (

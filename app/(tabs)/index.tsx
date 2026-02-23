@@ -3,12 +3,13 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, Tou
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award, Zap } from 'lucide-react-native';
+import { ChevronRight, Award } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBackendEnabled } from '@/lib/trpc';
+import { trpc } from '@/lib/trpc';
 import { normalizeAvatarUri } from '@/constants/avatarPresets';
 import StatCard from '@/components/StatCard';
 import PlatformBadge from '@/components/PlatformBadge';
@@ -21,10 +22,12 @@ export default function HomeScreen() {
   const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
   const backendEnabled = isBackendEnabled();
   const userSubmissions = useUserSubmissions(currentUser?.id);
+  const newsQuery = trpc.twitter.getUserTimeline.useQuery(
+    { username: 'stepnofficial', maxResults: 1 },
+    { enabled: backendEnabled, retry: false }
+  );
 
   const activeTasksAll = useMemo(() => tasks.filter((task) => task.status === 'active'), [tasks]);
-  const activeTasks = useMemo(() => activeTasksAll.slice(0, 3), [activeTasksAll]);
-
   const completedActiveTasks = useMemo(() => {
     const completedTaskIdSet = new Set(
       userSubmissions
@@ -154,6 +157,8 @@ export default function HomeScreen() {
   }
 
   const user = currentUser;
+  const latestNews = newsQuery.data?.[0] || null;
+  const latestNewsUrl = latestNews?.id ? `https://x.com/stepnofficial/status/${latestNews.id}` : '';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -216,43 +221,20 @@ export default function HomeScreen() {
             <StatCard label="Views" value={userStats.totalImpressions} color={Colors.dark.secondary} compact />
             <StatCard label="Likes" value={userStats.totalLikes} color={Colors.dark.accent} compact />
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Tasks</Text>
-            <PressableScale style={styles.seeAllBtn} onPress={() => router.push('/(tabs)/tasks')} testID="see-all-tasks">
-              <Text style={styles.seeAllText}>See All</Text>
-              <ChevronRight size={16} color={Colors.dark.primary} />
-            </PressableScale>
+          <View style={styles.newsCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.newsTitle}>What's News</Text>
+              {latestNewsUrl ? (
+                <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
+                  <Text style={styles.seeAllText}>Open</Text>
+                  <ChevronRight size={16} color={Colors.dark.primary} />
+                </PressableScale>
+              ) : null}
+            </View>
+            <Text style={styles.newsText} numberOfLines={3}>
+              {latestNews?.text || 'No live update available right now.'}
+            </Text>
           </View>
-          
-          {activeTasks.map((task) => (
-            <PressableScale 
-              key={task.id} 
-              style={styles.taskCard}
-              onPress={() => router.push(`/task/${task.id}`)}
-              testID={`task-card-${task.id}`}
-            >
-              <View style={styles.taskHeader}>
-                <View style={styles.taskBadges}>
-                  {task.platforms.map((p) => (
-                    <PlatformBadge key={p} platform={p} size="small" />
-                  ))}
-                </View>
-                <View style={styles.pointsBadge}>
-                  <Zap size={12} color={Colors.dark.warning} />
-                  <Text style={styles.pointsBadgeText}>{task.points}</Text>
-                </View>
-              </View>
-              <Text style={styles.taskTitle}>{task.title}</Text>
-              <Text style={styles.taskCampaign}>{task.campaignTitle}</Text>
-              <View style={styles.taskFooter}>
-                <Text style={styles.taskDeadline}>Due {new Date(task.deadline).toLocaleDateString()}</Text>
-                <Text style={styles.taskSubmissions}>{task.submissions} submissions</Text>
-              </View>
-            </PressableScale>
-          ))}
         </View>
 
         <View style={styles.section}>
@@ -489,6 +471,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 12,
+  },
+  newsCard: {
+    marginTop: 14,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 12,
+  },
+  newsTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.dark.text,
+  },
+  newsText: {
+    marginTop: 4,
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
   },
   section: {
     paddingHorizontal: 20,
