@@ -85,6 +85,7 @@ export default function AdminXMetricsScreen() {
               <Text style={styles.line}>Last reason: {statusQuery.data.lastReason || 'N/A'}</Text>
               <Text style={styles.line}>Last batch: {statusQuery.data.lastProcessed || 0} processed, {statusQuery.data.lastErrors || 0} errors, {statusQuery.data.lastRemaining || 0} remaining</Text>
               <Text style={styles.line}>Last duration: {statusQuery.data.lastDurationMs ? `${Math.round(statusQuery.data.lastDurationMs / 1000)}s` : 'N/A'}</Text>
+              <Text style={styles.line}>Rate limit until: {statusQuery.data.rateLimitedUntil ? new Date(statusQuery.data.rateLimitedUntil).toLocaleString() : 'No active cooldown'}</Text>
               <Text style={styles.line}>Next run: {statusQuery.data.nextScheduledRunAt ? new Date(statusQuery.data.nextScheduledRunAt).toLocaleString() : 'Pending'}</Text>
             </>
           ) : (

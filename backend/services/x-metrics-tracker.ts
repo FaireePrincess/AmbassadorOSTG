@@ -12,8 +12,8 @@ import {
 
 const SUBMISSIONS_COLLECTION = "submissions";
 const USERS_COLLECTION = "users";
-const MAX_BATCH = 20;
-const REQUEST_SPACING_MS = 1500;
+const MAX_BATCH = 10;
+const REQUEST_SPACING_MS = 3500;
 const RATE_LIMIT_BACKOFF_MS = 2 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOURLY_MS = 60 * 60 * 1000;
@@ -43,6 +43,7 @@ type XMetricsStatus = {
   lastRemaining: number;
   lastDurationMs?: number;
   nextScheduledRunAt?: string;
+  rateLimitedUntil?: string;
   regionLastRunAt: Record<string, string>;
   regions: string[];
   logs: XMetricsLogEntry[];
@@ -184,6 +185,11 @@ let xMetricsStatus: XMetricsStatus = {
   logs: [],
 };
 
+type RunOptions = {
+  ignoreRateLimit?: boolean;
+  maxBatch?: number;
+};
+
 function pruneLogs() {
   const cutoff = Date.now() - LOG_RETENTION_MS;
   xMetricsStatus.logs = xMetricsStatus.logs.filter((entry) => {
@@ -279,12 +285,21 @@ async function getRegionAverageImpressionsMap(users: User[], submissions: Submis
   );
 }
 
-export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverride?: string): Promise<{ processed: number; remaining: number; errors: number; region?: string }> {
+export async function runXMetricsTrackingBatch(
+  reason = "scheduled",
+  regionOverride?: string,
+  options?: RunOptions
+): Promise<{ processed: number; remaining: number; errors: number; region?: string }> {
   if (runInProgress) {
     return { processed: 0, remaining: 0, errors: 0, region: regionOverride };
   }
-  if (Date.now() < rateLimitedUntil) {
+  const bypassRateLimit = options?.ignoreRateLimit === true;
+  if (!bypassRateLimit && Date.now() < rateLimitedUntil) {
     return { processed: 0, remaining: 0, errors: 0, region: regionOverride };
+  }
+  if (Date.now() >= rateLimitedUntil) {
+    rateLimitedUntil = 0;
+    xMetricsStatus.rateLimitedUntil = undefined;
   }
 
   runInProgress = true;
@@ -351,7 +366,8 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
       (submission) => canTrackSubmission(submission) && (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
     );
 
-    const queue = regionEligible.slice(0, MAX_BATCH);
+    const batchLimit = Math.max(1, Math.min(MAX_BATCH, options?.maxBatch ?? MAX_BATCH));
+    const queue = regionEligible.slice(0, batchLimit);
     remaining = Math.max(0, regionEligible.length - queue.length);
 
     const regionAvgMap = await getRegionAverageImpressionsMap(users, submissions);
@@ -465,6 +481,7 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
         if (message.includes("X API error 429") || message.includes("X user API error 429")) {
           hitRateLimit = true;
           rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          xMetricsStatus.rateLimitedUntil = new Date(rateLimitedUntil).toISOString();
           clearRegionQueue();
           nextCycleAt = rateLimitedUntil;
           if (scheduleTimer) {
@@ -577,6 +594,10 @@ async function startDailyRegionQueue(reason: string) {
 
 export function getXMetricsStatus(): XMetricsStatus {
   pruneLogs();
+  if (rateLimitedUntil && Date.now() >= rateLimitedUntil) {
+    rateLimitedUntil = 0;
+    xMetricsStatus.rateLimitedUntil = undefined;
+  }
   return {
     ...xMetricsStatus,
     configured: !!getTwitterToken(),
