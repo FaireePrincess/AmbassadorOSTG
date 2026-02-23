@@ -110,6 +110,19 @@ export default function HomeScreen() {
     if (!selectedLeaderboardUserId) return null;
     return fullLeaderboard.find((entry) => entry.id === selectedLeaderboardUserId) || null;
   }, [selectedLeaderboardUserId, fullLeaderboard]);
+  const selectedSocialHandles = useMemo(() => {
+    if (!selectedLeaderboardUser) return [];
+    const handles = [
+      { label: 'X', value: selectedLeaderboardUser.handles?.twitter },
+      { label: 'Instagram', value: selectedLeaderboardUser.handles?.instagram },
+      { label: 'TikTok', value: selectedLeaderboardUser.handles?.tiktok },
+      { label: 'YouTube', value: selectedLeaderboardUser.handles?.youtube },
+      { label: 'Facebook', value: selectedLeaderboardUser.handles?.facebook },
+      { label: 'Telegram', value: selectedLeaderboardUser.handles?.telegram },
+      { label: 'Discord', value: selectedLeaderboardUser.handles?.discord },
+    ];
+    return handles.filter((item) => (item.value || '').trim().length > 0);
+  }, [selectedLeaderboardUser]);
 
   const userStats = useMemo(() => {
     if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, points: 0 };
@@ -325,28 +338,56 @@ export default function HomeScreen() {
             <PressableScale style={styles.regionalBtn} onPress={() => setSelectedLeaderboardUserId(null)}>
               <Text style={styles.regionalBtnText}>Close</Text>
             </PressableScale>
-            <Text style={styles.modalTitle}>Ambassador Profile</Text>
+            <Text style={styles.modalTitle}>Recap Card</Text>
             <View style={{ width: 62 }} />
           </View>
           {selectedLeaderboardUser && (
-            <View style={styles.modalBody}>
-              <Text style={styles.modalName}>{selectedLeaderboardUser.name}</Text>
-              <Text style={styles.modalMeta}>@{selectedLeaderboardUser.username || 'not-set'} • {selectedLeaderboardUser.region}</Text>
-              <Text style={styles.modalStat}>Rank: #{selectedLeaderboardUser.rank}</Text>
-              <Text style={styles.modalStat}>Points: {selectedLeaderboardUser.points.toLocaleString()}</Text>
-              <Text style={styles.modalSubTitle}>Performance</Text>
-              <Text style={styles.modalStat}>Tasks Completed: {selectedLeaderboardUser.stats.completedTasks}</Text>
-              <Text style={styles.modalStat}>Approved Posts: {selectedLeaderboardUser.stats.totalPosts}</Text>
-              <Text style={styles.modalStat}>Impressions: {selectedLeaderboardUser.stats.totalImpressions.toLocaleString()}</Text>
-              <Text style={styles.modalSubTitle}>Social Handles</Text>
-              <Text style={styles.modalHandle}>X: {selectedLeaderboardUser.handles?.twitter || '-'}</Text>
-              <Text style={styles.modalHandle}>Instagram: {selectedLeaderboardUser.handles?.instagram || '-'}</Text>
-              <Text style={styles.modalHandle}>TikTok: {selectedLeaderboardUser.handles?.tiktok || '-'}</Text>
-              <Text style={styles.modalHandle}>YouTube: {selectedLeaderboardUser.handles?.youtube || '-'}</Text>
-              <Text style={styles.modalHandle}>Facebook: {selectedLeaderboardUser.handles?.facebook || '-'}</Text>
-              <Text style={styles.modalHandle}>Telegram: {selectedLeaderboardUser.handles?.telegram || '-'}</Text>
-              <Text style={styles.modalHandle}>Discord: {selectedLeaderboardUser.handles?.discord || '-'}</Text>
-            </View>
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.recapHero}>
+                <Text style={styles.recapEyebrow}>YOUR RECAP</Text>
+                <Text style={styles.modalName}>{selectedLeaderboardUser.name}</Text>
+                <Text style={styles.modalMeta}>
+                  {selectedLeaderboardUser.region} • @{selectedLeaderboardUser.username || 'not-set'}
+                </Text>
+              </View>
+
+              <View style={styles.recapStatsRow}>
+                <View style={styles.recapStatCard}>
+                  <Text style={styles.recapStatValue}>{selectedLeaderboardUser.rank}</Text>
+                  <Text style={styles.recapStatLabel}>STEPS</Text>
+                </View>
+                <View style={styles.recapStatCard}>
+                  <Text style={styles.recapStatValue}>{selectedLeaderboardUser.points.toLocaleString()}</Text>
+                  <Text style={styles.recapStatLabel}>KMS</Text>
+                </View>
+              </View>
+
+              <View style={styles.recapPanel}>
+                <Text style={styles.modalSubTitle}>X Stats</Text>
+                <View style={styles.recapStatsRow}>
+                  <View style={styles.recapMiniStat}>
+                    <Text style={styles.recapMiniValue}>{selectedLeaderboardUser.stats.totalImpressions.toLocaleString()}</Text>
+                    <Text style={styles.recapMiniLabel}>Impressions</Text>
+                  </View>
+                  <View style={styles.recapMiniStat}>
+                    <Text style={styles.recapMiniValue}>{selectedLeaderboardUser.stats.totalLikes.toLocaleString()}</Text>
+                    <Text style={styles.recapMiniLabel}>Likes</Text>
+                  </View>
+                </View>
+              </View>
+
+              {selectedSocialHandles.length > 0 && (
+                <View style={styles.recapPanel}>
+                  <Text style={styles.modalSubTitle}>Social Accounts</Text>
+                  {selectedSocialHandles.map((item) => (
+                    <View key={item.label} style={styles.socialRow}>
+                      <Text style={styles.socialLabel}>{item.label}</Text>
+                      <Text style={styles.socialValue}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
           )}
         </SafeAreaView>
       </Modal>
@@ -759,6 +800,96 @@ const styles = StyleSheet.create({
   modalBody: {
     paddingHorizontal: 20,
     paddingTop: 20,
+  },
+  recapHero: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2e3350',
+    backgroundColor: '#121427',
+    padding: 14,
+  },
+  recapEyebrow: {
+    color: '#7bf542',
+    fontSize: 12,
+    fontWeight: '800' as const,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  recapStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  recapStatCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#25304a',
+    backgroundColor: '#0e1320',
+    padding: 12,
+    alignItems: 'center',
+  },
+  recapStatValue: {
+    color: Colors.dark.text,
+    fontSize: 22,
+    fontWeight: '800' as const,
+  },
+  recapStatLabel: {
+    color: '#7bf542',
+    fontSize: 12,
+    fontWeight: '700' as const,
+    marginTop: 4,
+  },
+  recapPanel: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+    padding: 12,
+  },
+  recapMiniStat: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 10,
+  },
+  recapMiniValue: {
+    color: Colors.dark.warning,
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
+  recapMiniLabel: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: 8,
+    marginTop: 8,
+    gap: 10,
+  },
+  socialLabel: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  socialValue: {
+    flex: 1,
+    textAlign: 'right',
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
   modalName: {
     color: Colors.dark.text,

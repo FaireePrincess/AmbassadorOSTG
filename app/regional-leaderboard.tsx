@@ -60,6 +60,19 @@ export default function RegionalLeaderboardScreen() {
       totalImpressions,
     };
   }, [regionalUsers]);
+  const selectedAmbassadorHandles = useMemo(() => {
+    if (!selectedAmbassador) return [];
+    const handles = [
+      { label: 'X', value: selectedAmbassador.handles?.twitter },
+      { label: 'Instagram', value: selectedAmbassador.handles?.instagram },
+      { label: 'TikTok', value: selectedAmbassador.handles?.tiktok },
+      { label: 'YouTube', value: selectedAmbassador.handles?.youtube },
+      { label: 'Facebook', value: selectedAmbassador.handles?.facebook },
+      { label: 'Telegram', value: selectedAmbassador.handles?.telegram },
+      { label: 'Discord', value: selectedAmbassador.handles?.discord },
+    ];
+    return handles.filter((item) => (item.value || '').trim().length > 0);
+  }, [selectedAmbassador]);
 
   if (!currentUser) {
     return <LoadingScreen message="Loading regional board..." />;
@@ -177,31 +190,39 @@ export default function RegionalLeaderboardScreen() {
 
           {selectedAmbassador && (
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.modalProfileTop}>
-                <Image source={normalizeAvatarUri(selectedAmbassador.avatar)} style={styles.modalAvatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+              <View style={styles.recapHero}>
                 <Text style={styles.modalName}>{selectedAmbassador.name}</Text>
-                <Text style={styles.modalMeta}>{selectedAmbassador.region} • {selectedAmbassador.role.replace('_', ' ')}</Text>
+                <Text style={styles.modalMeta}>YOUR RECAP • {selectedAmbassador.region}</Text>
+              </View>
+
+              <View style={styles.recapStatsRow}>
+                <View style={styles.recapStatCard}>
+                  <Text style={styles.recapStatValue}>{selectedAmbassador.rank || '-'}</Text>
+                  <Text style={styles.recapStatLabel}>STEPS</Text>
+                </View>
+                <View style={styles.recapStatCard}>
+                  <Text style={styles.recapStatValue}>{selectedAmbassador.points.toLocaleString()}</Text>
+                  <Text style={styles.recapStatLabel}>KMS</Text>
+                </View>
               </View>
 
               <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>Performance</Text>
-                <Text style={styles.detailItem}>Rank: #{selectedAmbassador.rank || '-'}</Text>
-                <Text style={styles.detailItem}>Points: {selectedAmbassador.points.toLocaleString()}</Text>
-                <Text style={styles.detailItem}>Tasks Completed: {selectedAmbassador.stats.completedTasks}</Text>
-                <Text style={styles.detailItem}>Approved Posts: {selectedAmbassador.stats.totalPosts}</Text>
+                <Text style={styles.detailTitle}>X Stats</Text>
                 <Text style={styles.detailItem}>Impressions: {selectedAmbassador.stats.totalImpressions.toLocaleString()}</Text>
+                <Text style={styles.detailItem}>Likes: {selectedAmbassador.stats.totalLikes.toLocaleString()}</Text>
               </View>
 
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>Social Handles</Text>
-                <Text style={styles.detailItem}>X: {selectedAmbassador.handles?.twitter || '-'}</Text>
-                <Text style={styles.detailItem}>Instagram: {selectedAmbassador.handles?.instagram || '-'}</Text>
-                <Text style={styles.detailItem}>TikTok: {selectedAmbassador.handles?.tiktok || '-'}</Text>
-                <Text style={styles.detailItem}>YouTube: {selectedAmbassador.handles?.youtube || '-'}</Text>
-                <Text style={styles.detailItem}>Facebook: {selectedAmbassador.handles?.facebook || '-'}</Text>
-                <Text style={styles.detailItem}>Telegram: {selectedAmbassador.handles?.telegram || '-'}</Text>
-                <Text style={styles.detailItem}>Discord: {selectedAmbassador.handles?.discord || '-'}</Text>
-              </View>
+              {selectedAmbassadorHandles.length > 0 && (
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailTitle}>Social Accounts</Text>
+                  {selectedAmbassadorHandles.map((item) => (
+                    <View key={item.label} style={styles.socialRow}>
+                      <Text style={styles.socialLabel}>{item.label}</Text>
+                      <Text style={styles.socialValue}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </ScrollView>
           )}
         </View>
@@ -422,6 +443,40 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  recapHero: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2e3350',
+    backgroundColor: '#121427',
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  recapStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  recapStatCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#25304a',
+    backgroundColor: '#0e1320',
+    padding: 12,
+    alignItems: 'center',
+  },
+  recapStatValue: {
+    color: Colors.dark.text,
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  recapStatLabel: {
+    color: '#7bf542',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   modalProfileTop: {
     alignItems: 'center',
     marginTop: 8,
@@ -460,5 +515,27 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: 13,
     marginBottom: 5,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: 8,
+    marginTop: 8,
+    gap: 10,
+  },
+  socialLabel: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  socialValue: {
+    flex: 1,
+    textAlign: 'right',
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
