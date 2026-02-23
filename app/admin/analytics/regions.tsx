@@ -94,7 +94,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function AdminRegionalAnalyticsScreen() {
-  const { users, isLoading: authLoading } = useAuth();
+  const { users, isLoading: authLoading, currentUser } = useAuth();
   const { submissions, isLoading: appLoading } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedWindow, setSelectedWindow] = useState<WindowKey>('30d');
@@ -105,6 +105,15 @@ export default function AdminRegionalAnalyticsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator color={Colors.dark.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  const canAccessDashboard = currentUser?.role === 'admin' || currentUser?.role === 'regional_lead';
+  if (!canAccessDashboard) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.error}>Regional dashboard is available to Regional Leads and Admins.</Text>
       </SafeAreaView>
     );
   }

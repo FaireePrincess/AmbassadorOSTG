@@ -504,12 +504,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (BACKEND_ENABLED) {
       try {
         const normalizedAvatar = normalizeAvatarUri(updates.avatar || currentUser.avatar);
+        const nextRegion = currentUser.role === 'admin' ? updates.region : undefined;
         const updated = await trpcClient.users.update.mutate({
           id: currentUser.id,
           name: updates.name,
           email: updates.email,
           username: updates.username,
-          region: updates.region,
+          region: nextRegion,
           avatar: normalizedAvatar,
           handles: updates.handles,
           fslEmail: updates.fslEmail,
@@ -540,6 +541,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updatedUser: User = {
       ...currentUsers[userIndex],
       ...updates,
+      region: currentUser.role === 'admin' && updates.region !== undefined
+        ? updates.region
+        : currentUsers[userIndex].region,
       avatar: normalizeAvatarUri(updates.avatar || currentUsers[userIndex].avatar),
       handles: updates.handles ?? currentUsers[userIndex].handles,
     };

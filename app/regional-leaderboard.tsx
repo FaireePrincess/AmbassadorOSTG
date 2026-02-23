@@ -19,6 +19,7 @@ export default function RegionalLeaderboardScreen() {
   const { ambassadorFeed, refreshData, isRefreshing } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [selectedAmbassador, setSelectedAmbassador] = useState<User | null>(null);
+  const canBrowseAllRegions = Boolean(isAdmin || currentUser?.role === 'regional_lead');
 
   useEffect(() => {
     if (currentUser?.region && !selectedRegion) {
@@ -31,7 +32,9 @@ export default function RegionalLeaderboardScreen() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [users]);
 
-  const region = selectedRegion || currentUser?.region || 'Unknown';
+  const region = canBrowseAllRegions
+    ? (selectedRegion || currentUser?.region || 'Unknown')
+    : (currentUser?.region || 'Unknown');
 
   const regionalUsers = useMemo(() => {
     return users
@@ -104,7 +107,7 @@ export default function RegionalLeaderboardScreen() {
           <Text style={styles.subtitle}>Local rank, performance, and feed activity</Text>
         </View>
 
-        {isAdmin && (
+        {canBrowseAllRegions && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionFilterRow}>
             {availableRegions.map((item) => {
               const active = item === region;
@@ -198,11 +201,11 @@ export default function RegionalLeaderboardScreen() {
               <View style={styles.recapStatsRow}>
                 <View style={styles.recapStatCard}>
                   <Text style={styles.recapStatValue}>{selectedAmbassador.rank || '-'}</Text>
-                  <Text style={styles.recapStatLabel}>STEPS</Text>
+                  <Text style={styles.recapStatLabel}>Ranking</Text>
                 </View>
                 <View style={styles.recapStatCard}>
                   <Text style={styles.recapStatValue}>{selectedAmbassador.points.toLocaleString()}</Text>
-                  <Text style={styles.recapStatLabel}>KMS</Text>
+                  <Text style={styles.recapStatLabel}>Points</Text>
                 </View>
               </View>
 
@@ -448,7 +451,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2e3350',
     backgroundColor: '#121427',
-    padding: 14,
+    padding: 12,
     marginTop: 8,
     marginBottom: 12,
   },
@@ -459,12 +462,14 @@ const styles = StyleSheet.create({
   },
   recapStatCard: {
     flex: 1,
+    minHeight: 76,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#25304a',
     backgroundColor: '#0e1320',
     padding: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   recapStatValue: {
     color: Colors.dark.text,

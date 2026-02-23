@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -56,9 +56,7 @@ export default function HomeScreen() {
   const topPosts = feedPosts.slice(0, 2);
   const allPosts = feedPosts.slice(0, 20);
 
-  const [showLeaderboardExpanded, setShowLeaderboardExpanded] = useState(false);
   const [showFeedExpanded, setShowFeedExpanded] = useState(false);
-  const [selectedLeaderboardUserId, setSelectedLeaderboardUserId] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshUsers();
@@ -89,11 +87,6 @@ export default function HomeScreen() {
       .map((u, idx) => ({ ...u, rank: idx + 1 }));
   }, [users, currentUser]);
 
-  const leaderboard = useMemo(() => fullLeaderboard.slice(0, 5), [fullLeaderboard]);
-  const leaderboardRows = useMemo(
-    () => (showLeaderboardExpanded ? fullLeaderboard : leaderboard),
-    [showLeaderboardExpanded, fullLeaderboard, leaderboard]
-  );
   const feedRows = useMemo(
     () => (showFeedExpanded ? allPosts : topPosts),
     [showFeedExpanded, allPosts, topPosts]
@@ -105,24 +98,6 @@ export default function HomeScreen() {
     const idx = fullLeaderboard.findIndex(u => u.id === currentUser.id);
     return idx >= 0 ? idx + 1 : 0;
   }, [currentUser, fullLeaderboard]);
-
-  const selectedLeaderboardUser = useMemo(() => {
-    if (!selectedLeaderboardUserId) return null;
-    return fullLeaderboard.find((entry) => entry.id === selectedLeaderboardUserId) || null;
-  }, [selectedLeaderboardUserId, fullLeaderboard]);
-  const selectedSocialHandles = useMemo(() => {
-    if (!selectedLeaderboardUser) return [];
-    const handles = [
-      { label: 'X', value: selectedLeaderboardUser.handles?.twitter },
-      { label: 'Instagram', value: selectedLeaderboardUser.handles?.instagram },
-      { label: 'TikTok', value: selectedLeaderboardUser.handles?.tiktok },
-      { label: 'YouTube', value: selectedLeaderboardUser.handles?.youtube },
-      { label: 'Facebook', value: selectedLeaderboardUser.handles?.facebook },
-      { label: 'Telegram', value: selectedLeaderboardUser.handles?.telegram },
-      { label: 'Discord', value: selectedLeaderboardUser.handles?.discord },
-    ];
-    return handles.filter((item) => (item.value || '').trim().length > 0);
-  }, [selectedLeaderboardUser]);
 
   const userStats = useMemo(() => {
     if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, points: 0 };
@@ -252,43 +227,6 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Leaderboard</Text>
-            <View style={styles.headerActions}>
-              <PressableScale style={styles.regionalBtn} onPress={() => router.push('/regional-leaderboard' as any)}>
-                <Text style={styles.regionalBtnText}>Regional</Text>
-              </PressableScale>
-              <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowLeaderboardExpanded((prev) => !prev)} activeOpacity={0.8}>
-                <Text style={styles.seeAllText}>{showLeaderboardExpanded ? 'Top 5' : 'Full Board'}</Text>
-                <ChevronRight size={16} color={Colors.dark.primary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          <View style={styles.leaderboardCard}>
-            {leaderboardRows.map((entry, index) => (
-              <PressableScale key={entry.id} style={[styles.leaderboardRow, index !== leaderboardRows.length - 1 && styles.leaderboardRowBorder]} onPress={() => setSelectedLeaderboardUserId(entry.id)}>
-                <View style={styles.leaderboardLeft}>
-                  <View style={[styles.rankBadge, index < 3 && styles.topRankBadge]}>
-                    <Text style={[styles.rankBadgeText, index < 3 && styles.topRankText]}>
-                      {entry.rank}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.leaderboardName}>{entry.name}</Text>
-                    <Text style={styles.leaderboardRegion}>{entry.region}</Text>
-                  </View>
-                </View>
-                <View style={styles.leaderboardRight}>
-                  <Text style={styles.leaderboardPoints}>{entry.points.toLocaleString()}</Text>
-                  <Text style={styles.leaderboardPosts}>{entry.stats.totalPosts} posts</Text>
-                </View>
-              </PressableScale>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ambassador Feed</Text>
             <TouchableOpacity style={styles.seeAllBtn} onPress={() => setShowFeedExpanded((prev) => !prev)} activeOpacity={0.8}>
               <Text style={styles.seeAllText}>{showFeedExpanded ? 'Show Less' : 'See All'}</Text>
@@ -326,72 +264,6 @@ export default function HomeScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      <Modal
-        visible={!!selectedLeaderboardUser}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedLeaderboardUserId(null)}
-      >
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.modalHeader}>
-            <PressableScale style={styles.regionalBtn} onPress={() => setSelectedLeaderboardUserId(null)}>
-              <Text style={styles.regionalBtnText}>Close</Text>
-            </PressableScale>
-            <Text style={styles.modalTitle}>Recap Card</Text>
-            <View style={{ width: 62 }} />
-          </View>
-          {selectedLeaderboardUser && (
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.recapHero}>
-                <Text style={styles.recapEyebrow}>YOUR RECAP</Text>
-                <Text style={styles.modalName}>{selectedLeaderboardUser.name}</Text>
-                <Text style={styles.modalMeta}>
-                  {selectedLeaderboardUser.region} • @{selectedLeaderboardUser.username || 'not-set'}
-                </Text>
-              </View>
-
-              <View style={styles.recapStatsRow}>
-                <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedLeaderboardUser.rank}</Text>
-                  <Text style={styles.recapStatLabel}>STEPS</Text>
-                </View>
-                <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedLeaderboardUser.points.toLocaleString()}</Text>
-                  <Text style={styles.recapStatLabel}>KMS</Text>
-                </View>
-              </View>
-
-              <View style={styles.recapPanel}>
-                <Text style={styles.modalSubTitle}>X Stats</Text>
-                <View style={styles.recapStatsRow}>
-                  <View style={styles.recapMiniStat}>
-                    <Text style={styles.recapMiniValue}>{selectedLeaderboardUser.stats.totalImpressions.toLocaleString()}</Text>
-                    <Text style={styles.recapMiniLabel}>Impressions</Text>
-                  </View>
-                  <View style={styles.recapMiniStat}>
-                    <Text style={styles.recapMiniValue}>{selectedLeaderboardUser.stats.totalLikes.toLocaleString()}</Text>
-                    <Text style={styles.recapMiniLabel}>Likes</Text>
-                  </View>
-                </View>
-              </View>
-
-              {selectedSocialHandles.length > 0 && (
-                <View style={styles.recapPanel}>
-                  <Text style={styles.modalSubTitle}>Social Accounts</Text>
-                  {selectedSocialHandles.map((item) => (
-                    <View key={item.label} style={styles.socialRow}>
-                      <Text style={styles.socialLabel}>{item.label}</Text>
-                      <Text style={styles.socialValue}>{item.value}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </Modal>
-
     </SafeAreaView>
   );
 }

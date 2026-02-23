@@ -143,7 +143,7 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
-    if (!editRegion.trim()) {
+    if (currentUser.role === 'admin' && !editRegion.trim()) {
       Alert.alert('Error', 'Region cannot be empty');
       return;
     }
@@ -163,7 +163,7 @@ export default function ProfileScreen() {
       name: editName.trim(),
       email: editEmail.trim() || undefined,
       username: editUsername.trim() || undefined,
-      region: editRegion.trim(),
+      region: currentUser.role === 'admin' ? editRegion.trim() : undefined,
       avatar: normalizeAvatarUri(editAvatar.trim() || currentUser.avatar),
       fslEmail: cleanHandle(editFslEmail),
       handles: {
@@ -701,14 +701,18 @@ export default function ProfileScreen() {
               <View style={styles.inputContainer}>
                 <MapPin size={18} color={Colors.dark.textMuted} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, currentUser.role !== 'admin' && styles.inputReadonly]}
                   value={editRegion}
                   onChangeText={setEditRegion}
                   placeholder="Your region"
                   placeholderTextColor={Colors.dark.textMuted}
                   testID="edit-region-input"
+                  editable={currentUser.role === 'admin'}
                 />
               </View>
+              {currentUser.role !== 'admin' && (
+                <Text style={styles.inputHint}>Only admins can change region.</Text>
+              )}
             </View>
 
             <Text style={styles.sectionLabel}>Social Handles</Text>
@@ -1523,6 +1527,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: Colors.dark.text,
+  },
+  inputReadonly: {
+    color: Colors.dark.textMuted,
+  },
+  inputHint: {
+    marginTop: 6,
+    color: Colors.dark.textMuted,
+    fontSize: 12,
   },
   saveButton: {
     backgroundColor: Colors.dark.primary,
