@@ -13,7 +13,8 @@ import {
 const SUBMISSIONS_COLLECTION = "submissions";
 const USERS_COLLECTION = "users";
 const MAX_BATCH = 20;
-const FOLLOW_UP_DELAY_MS = 30 * 60 * 1000;
+const REQUEST_SPACING_MS = 1500;
+const RATE_LIMIT_BACKOFF_MS = 2 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOURLY_MS = 60 * 60 * 1000;
 const LOG_RETENTION_MS = 48 * 60 * 60 * 1000;
@@ -165,10 +166,9 @@ function isCriticalError(message: string): boolean {
 }
 
 let runInProgress = false;
-let followUpTimer: ReturnType<typeof setTimeout> | null = null;
 let scheduleTimer: ReturnType<typeof setTimeout> | null = null;
 let regionCursor = 0;
-let followUpRegion: string | null = null;
+let rateLimitedUntil = 0;
 
 let xMetricsStatus: XMetricsStatus = {
   configured: !!getTwitterToken(),
@@ -197,14 +197,6 @@ function pushLog(entry: XMetricsLogEntry) {
     xMetricsStatus.logs = xMetricsStatus.logs.slice(0, 1000);
   }
   pruneLogs();
-}
-
-function clearFollowUpTimer() {
-  if (followUpTimer) {
-    clearTimeout(followUpTimer);
-    followUpTimer = null;
-    followUpRegion = null;
-  }
 }
 
 function getRegions(users: User[]): string[] {
@@ -256,6 +248,9 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
   if (runInProgress) {
     return { processed: 0, remaining: 0, errors: 0, region: regionOverride };
   }
+  if (Date.now() < rateLimitedUntil) {
+    return { processed: 0, remaining: 0, errors: 0, region: regionOverride };
+  }
 
   runInProgress = true;
   xMetricsStatus.running = true;
@@ -266,6 +261,7 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
   let errors = 0;
   let remaining = 0;
   let targetRegion = regionOverride;
+  let hitRateLimit = false;
 
   try {
     const token = getTwitterToken();
@@ -319,9 +315,6 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
     const regionEligible = submissions.filter(
       (submission) => canTrackSubmission(submission) && (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
     );
-
-    // mark this region as run when we begin processing it
-    xMetricsStatus.regionLastRunAt[targetRegion] = new Date().toISOString();
 
     const queue = regionEligible.slice(0, MAX_BATCH);
     remaining = Math.max(0, regionEligible.length - queue.length);
@@ -434,6 +427,11 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
       } catch (error) {
         errors += 1;
         const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("X API error 429") || message.includes("X user API error 429")) {
+          hitRateLimit = true;
+          rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          xMetricsStatus.nextScheduledRunAt = new Date(rateLimitedUntil).toISOString();
+        }
         pushLog({
           id: `xlog-${Date.now()}-${submission.id}-error`,
           timestamp: new Date().toISOString(),
@@ -446,19 +444,19 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
           message,
           critical: isCriticalError(message),
         });
+        if (hitRateLimit) break;
       }
+      // Space requests to reduce X API burst pressure.
+      await new Promise((resolve) => setTimeout(resolve, REQUEST_SPACING_MS));
     }
 
     if (processed > 0) {
       await recomputeAllUserPerformance();
     }
 
-    if (remaining > 0) {
-      clearFollowUpTimer();
-      followUpRegion = targetRegion;
-      followUpTimer = setTimeout(() => {
-        void runXMetricsTrackingBatch("follow-up", followUpRegion || undefined);
-      }, FOLLOW_UP_DELAY_MS);
+    if (!hitRateLimit) {
+      // mark this region as run once the batch completes (or queue exhausted)
+      xMetricsStatus.regionLastRunAt[targetRegion] = new Date().toISOString();
     }
 
     const durationMs = Date.now() - startedAt;
