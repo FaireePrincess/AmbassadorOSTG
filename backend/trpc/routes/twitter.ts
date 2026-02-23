@@ -23,6 +23,7 @@ interface TweetData {
   authorId: string;
   createdAt: string;
   metrics: TweetMetrics;
+  imageUrl?: string;
 }
 
 async function fetchTweetMetrics(tweetId: string): Promise<TweetData | null> {
@@ -175,7 +176,7 @@ export const twitterRouter = createTRPCRouter({
         const requested = input.maxResults || 10;
         const maxResults = Math.max(5, Math.min(100, requested));
         const tweetsResponse = await fetch(
-          `https://api.twitter.com/2/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=public_metrics,created_at`,
+          `https://api.twitter.com/2/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=public_metrics,created_at,attachments&expansions=attachments.media_keys&media.fields=url,preview_image_url,type`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -189,21 +190,48 @@ export const twitterRouter = createTRPCRouter({
 
         const tweetsData = await tweetsResponse.json();
         const tweets = tweetsData.data || [];
+        const media = (tweetsData.includes?.media || []) as Array<Record<string, unknown>>;
+        const mediaByKey = new Map<string, Record<string, unknown>>();
+        for (const mediaItem of media) {
+          const mediaKey = typeof mediaItem.media_key === "string" ? mediaItem.media_key : "";
+          if (mediaKey) {
+            mediaByKey.set(mediaKey, mediaItem);
+          }
+        }
 
         console.log("[Twitter] Fetched", tweets.length, "tweets for user:", input.username);
 
-        return tweets.map((tweet: Record<string, unknown>) => ({
-          id: tweet.id,
-          text: tweet.text,
-          createdAt: tweet.created_at,
-          metrics: {
-            impressions: (tweet.public_metrics as Record<string, number>)?.impression_count || 0,
-            likes: (tweet.public_metrics as Record<string, number>)?.like_count || 0,
-            retweets: (tweet.public_metrics as Record<string, number>)?.retweet_count || 0,
-            replies: (tweet.public_metrics as Record<string, number>)?.reply_count || 0,
-            quotes: (tweet.public_metrics as Record<string, number>)?.quote_count || 0,
-          },
-        }));
+        return tweets.map((tweet: Record<string, unknown>) => {
+          const attachmentKeys = ((tweet.attachments as Record<string, unknown>)?.media_keys ||
+            []) as unknown[];
+          let imageUrl: string | undefined;
+
+          for (const mediaKeyValue of attachmentKeys) {
+            const mediaKey = typeof mediaKeyValue === "string" ? mediaKeyValue : "";
+            if (!mediaKey) continue;
+            const mediaItem = mediaByKey.get(mediaKey);
+            if (!mediaItem) continue;
+            const url = typeof mediaItem.url === "string" ? mediaItem.url : "";
+            const previewImageUrl =
+              typeof mediaItem.preview_image_url === "string" ? mediaItem.preview_image_url : "";
+            imageUrl = url || previewImageUrl || undefined;
+            if (imageUrl) break;
+          }
+
+          return {
+            id: tweet.id,
+            text: tweet.text,
+            createdAt: tweet.created_at,
+            imageUrl,
+            metrics: {
+              impressions: (tweet.public_metrics as Record<string, number>)?.impression_count || 0,
+              likes: (tweet.public_metrics as Record<string, number>)?.like_count || 0,
+              retweets: (tweet.public_metrics as Record<string, number>)?.retweet_count || 0,
+              replies: (tweet.public_metrics as Record<string, number>)?.reply_count || 0,
+              quotes: (tweet.public_metrics as Record<string, number>)?.quote_count || 0,
+            },
+          };
+        });
       } catch (error) {
         console.error("[Twitter] Error fetching user timeline:", error);
         throw error;

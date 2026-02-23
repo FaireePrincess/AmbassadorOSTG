@@ -194,7 +194,7 @@ export default function HomeScreen() {
 
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Tasks Completed</Text>
-          <View style={styles.progressCard}>
+          <PressableScale style={styles.progressCard} onPress={() => router.push('/(tabs)/tasks')}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>
                 {activeTasksAll.length === 0
@@ -206,7 +206,7 @@ export default function HomeScreen() {
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.round(taskProgress * 100)}%` }]} />
             </View>
-          </View>
+          </PressableScale>
 
           <Text style={styles.sectionTitle}>Your Performance</Text>
           <View style={styles.statsGrid}>
@@ -234,6 +234,15 @@ export default function HomeScreen() {
             <Text style={styles.newsText} numberOfLines={3}>
               {latestNews?.text || 'No live update available right now.'}
             </Text>
+            {latestNews?.imageUrl ? (
+              <Image
+                source={latestNews.imageUrl}
+                style={styles.newsImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={0}
+              />
+            ) : null}
           </View>
         </View>
 
@@ -430,6 +439,14 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: 13,
     lineHeight: 19,
+  },
+  newsImage: {
+    marginTop: 10,
+    width: '100%',
+    height: 170,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   section: {
     paddingHorizontal: 20,
