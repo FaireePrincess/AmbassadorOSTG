@@ -4,9 +4,10 @@ import type { Event } from "@/types";
 
 const EVENTS_COLLECTION = "events";
 const REMINDER_LOG_COLLECTION = "event_reminder_logs";
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const TARGET_MINUTES = 60;
-const WINDOW_MINUTES = 5;
+const SCHEDULE_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const TARGET_LEAD_MS = 60 * 60 * 1000;
+const LATE_GRACE_MS = 5 * 60 * 1000;
+const SCHEDULE_LOOKAHEAD_MS = 25 * 60 * 60 * 1000;
 
 type ReminderLog = {
   id: string;
@@ -16,7 +17,8 @@ type ReminderLog = {
   sentAt: string;
 };
 
-let reminderTimer: ReturnType<typeof setInterval> | null = null;
+let scheduleSyncTimer: ReturnType<typeof setInterval> | null = null;
+const scheduledReminderTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function parseTimeParts(raw: string): { hour: number; minute: number; second: number } | null {
   const match = raw.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -66,48 +68,95 @@ function getEventStartMs(event: Event): number | null {
   return utcBase - (offsetMinutes * 60 * 1000);
 }
 
-function shouldSendReminder(event: Event, nowMs: number): boolean {
-  if (event.type !== "online") return false;
-  if (!event.link || !event.link.trim()) return false;
-
-  const startMs = getEventStartMs(event);
-  if (!startMs) return false;
-
-  const diffMinutes = (startMs - nowMs) / (60 * 1000);
-  return diffMinutes >= TARGET_MINUTES - WINDOW_MINUTES && diffMinutes <= TARGET_MINUTES + WINDOW_MINUTES;
-}
-
 function getReminderLogId(event: Event): string {
   return `event-reminder-${event.id}-${event.date}-${event.time}`;
 }
 
-async function runEventReminderCheck(): Promise<void> {
+async function sendAndLogReminder(event: Event): Promise<void> {
+  const logId = getReminderLogId(event);
+  const existing = await db.getById<ReminderLog>(REMINDER_LOG_COLLECTION, logId);
+  if (existing) return;
+
+  const result = await sendOnlineEventReminder(event);
+  if (!result.sent) {
+    console.log("[Events] Telegram reminder failed:", event.id, result.reason);
+    return;
+  }
+
+  await db.create<ReminderLog>(REMINDER_LOG_COLLECTION, {
+    id: logId,
+    eventId: event.id,
+    eventDate: event.date,
+    eventTime: event.time,
+    sentAt: new Date().toISOString(),
+  });
+
+  console.log("[Events] Telegram reminder sent:", event.id);
+}
+
+function clearScheduledReminder(key: string) {
+  const timer = scheduledReminderTimers.get(key);
+  if (!timer) return;
+  clearTimeout(timer);
+  scheduledReminderTimers.delete(key);
+}
+
+async function scheduleEventReminder(event: Event, nowMs: number): Promise<void> {
+  if (event.type !== "online") return;
+  if (!event.link || !event.link.trim()) return;
+
+  const startMs = getEventStartMs(event);
+  if (!startMs) return;
+
+  const sendAtMs = startMs - TARGET_LEAD_MS;
+  const key = getReminderLogId(event);
+  const existing = await db.getById<ReminderLog>(REMINDER_LOG_COLLECTION, key);
+  if (existing) {
+    clearScheduledReminder(key);
+    return;
+  }
+
+  const delayMs = sendAtMs - nowMs;
+  const tooLate = nowMs - sendAtMs > LATE_GRACE_MS;
+  const tooFar = delayMs > SCHEDULE_LOOKAHEAD_MS;
+
+  if (tooLate || tooFar) {
+    clearScheduledReminder(key);
+    return;
+  }
+
+  if (delayMs <= 0) {
+    clearScheduledReminder(key);
+    await sendAndLogReminder(event);
+    return;
+  }
+
+  if (scheduledReminderTimers.has(key)) return;
+
+  const timer = setTimeout(() => {
+    scheduledReminderTimers.delete(key);
+    void sendAndLogReminder(event);
+  }, delayMs);
+
+  scheduledReminderTimers.set(key, timer);
+}
+
+async function syncEventReminderSchedule(): Promise<void> {
   try {
     const events = await db.getCollection<Event>(EVENTS_COLLECTION);
     const nowMs = Date.now();
 
+    const validKeys = new Set<string>();
     for (const event of events) {
-      if (!shouldSendReminder(event, nowMs)) continue;
+      const key = getReminderLogId(event);
+      validKeys.add(key);
+      await scheduleEventReminder(event, nowMs);
+    }
 
-      const logId = getReminderLogId(event);
-      const existing = await db.getById<ReminderLog>(REMINDER_LOG_COLLECTION, logId);
-      if (existing) continue;
-
-      const result = await sendOnlineEventReminder(event);
-      if (!result.sent) {
-        console.log("[Events] Telegram reminder failed:", event.id, result.reason);
-        continue;
+    for (const key of [...scheduledReminderTimers.keys()]) {
+      if (!validKeys.has(key)) {
+        clearScheduledReminder(key);
       }
-
-      await db.create<ReminderLog>(REMINDER_LOG_COLLECTION, {
-        id: logId,
-        eventId: event.id,
-        eventDate: event.date,
-        eventTime: event.time,
-        sentAt: new Date().toISOString(),
-      });
-
-      console.log("[Events] Telegram reminder sent:", event.id);
     }
   } catch (error) {
     console.log("[Events] Reminder scheduler error:", error instanceof Error ? error.message : String(error));
@@ -115,10 +164,14 @@ async function runEventReminderCheck(): Promise<void> {
 }
 
 export function startEventReminderScheduler() {
-  if (reminderTimer) return;
+  if (scheduleSyncTimer) return;
 
-  void runEventReminderCheck();
-  reminderTimer = setInterval(() => {
-    void runEventReminderCheck();
-  }, CHECK_INTERVAL_MS);
+  void syncEventReminderSchedule();
+  scheduleSyncTimer = setInterval(() => {
+    void syncEventReminderSchedule();
+  }, SCHEDULE_SYNC_INTERVAL_MS);
+}
+
+export function refreshEventReminderSchedule() {
+  void syncEventReminderSchedule();
 }

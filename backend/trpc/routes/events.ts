@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from "../create-context";
 import { events as initialEvents } from "@/mocks/data";
 import { db } from "@/backend/db";
 import type { Event, EventType } from "@/types";
+import { refreshEventReminderSchedule } from "@/backend/services/event-reminder-scheduler";
 
 const COLLECTION = "events";
 const MAX_DATA_URI_LENGTH = 300_000;
@@ -92,6 +93,7 @@ export const eventsRouter = createTRPCRouter({
       };
       
       await db.create(COLLECTION, newEvent);
+      refreshEventReminderSchedule();
       
       console.log("[Events] Created new event:", newEvent.id);
       return newEvent;
@@ -126,6 +128,7 @@ export const eventsRouter = createTRPCRouter({
       
       const updatedEvent = { ...existing, ...input } as Event;
       await db.update(COLLECTION, input.id, updatedEvent);
+      refreshEventReminderSchedule();
       
       console.log("[Events] Updated event:", input.id);
       return updatedEvent;
@@ -141,6 +144,7 @@ export const eventsRouter = createTRPCRouter({
       }
       
       await db.remove(COLLECTION, input.id);
+      refreshEventReminderSchedule();
       
       console.log("[Events] Deleted event:", input.id);
       return { success: true };
