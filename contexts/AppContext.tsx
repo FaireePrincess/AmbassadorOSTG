@@ -644,6 +644,33 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
   }, []);
 
+  const incrementAssetDownload = useCallback(async (assetId: string) => {
+    try {
+      if (BACKEND_ENABLED) {
+        const updated = await trpcClient.assets.incrementDownload.mutate({ id: assetId });
+        if (updated) {
+          setAssets(prev => prev.map(a => a.id === assetId ? { ...a, downloadCount: updated.downloadCount } : a));
+        }
+        return { success: true };
+      }
+
+      setAssets(prev => {
+        const updated = prev.map(a =>
+          a.id === assetId
+            ? { ...a, downloadCount: (a.downloadCount || 0) + 1 }
+            : a
+        );
+        void saveStoredList(STORAGE_KEYS.ASSETS, updated);
+        return updated;
+      });
+      return { success: true };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Failed to track download';
+      console.log('[AppContext] Error incrementing asset download:', errMsg, error);
+      return { success: false, error: errMsg };
+    }
+  }, []);
+
   const addAssetFolder = useCallback(async (folder: { name: string; color?: string }) => {
     try {
       if (BACKEND_ENABLED) {
@@ -899,6 +926,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     addAsset,
     updateAsset,
     deleteAsset,
+    incrementAssetDownload,
     addAssetFolder,
     updateAssetFolder,
     deleteAssetFolder,

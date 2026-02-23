@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions, Linking } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Pencil } from 'lucide-react-native';
@@ -56,6 +56,7 @@ export default function AssetsScreen() {
     addAsset,
     updateAsset,
     deleteAsset,
+    incrementAssetDownload,
     addAssetFolder,
     updateAssetFolder,
     deleteAssetFolder,
@@ -116,14 +117,42 @@ export default function AssetsScreen() {
     refreshData();
   }, [refreshData]);
 
-  const handleDownload = useCallback((assetName: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(
-      'Download Started',
-      `${assetName} is being downloaded to your device.`,
-      [{ text: 'OK' }]
-    );
-  }, []);
+  const handleDownload = useCallback(async (asset: Asset) => {
+    const rawUrl = (asset.url || '').trim();
+    if (!rawUrl) {
+      Alert.alert('Missing file', 'This asset has no file URL.');
+      return;
+    }
+
+    const normalizedUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+
+    if (normalizedUrl.startsWith('data:')) {
+      Alert.alert('Unsupported file URL', 'This asset uses an inline file and cannot be downloaded directly.');
+      return;
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        const tg = (window as any).Telegram?.WebApp;
+        if (typeof tg?.openLink === 'function') {
+          tg.openLink(normalizedUrl);
+        } else {
+          const opened = window.open(normalizedUrl, '_blank', 'noopener,noreferrer');
+          if (!opened) {
+            await Linking.openURL(normalizedUrl);
+          }
+        }
+      } else {
+        await Linking.openURL(normalizedUrl);
+      }
+
+      await incrementAssetDownload(asset.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Opened', `${asset.name} is opening in your browser/app.`);
+    } catch {
+      Alert.alert('Open failed', 'Could not open this asset link.');
+    }
+  }, [incrementAssetDownload]);
 
   const clearSearch = useCallback(() => {
     setSearchQuery('');
@@ -451,7 +480,7 @@ export default function AssetsScreen() {
 
                         <PressableScale 
                           style={styles.downloadBtn}
-                          onPress={() => handleDownload(asset.name)}
+                          onPress={() => handleDownload(asset)}
                           hapticType="medium"
                           testID={`download-${asset.id}`}
                         >
