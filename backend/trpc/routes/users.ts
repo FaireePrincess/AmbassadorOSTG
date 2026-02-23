@@ -103,6 +103,7 @@ function sanitizeUser(user: User): User {
     totalImpressions: 0,
     totalLikes: 0,
     totalRetweets: 0,
+    xFollowers: 0,
     completedTasks: 0,
   };
 
@@ -119,6 +120,7 @@ function sanitizeUser(user: User): User {
       totalImpressions: safeNumber(stats.totalImpressions),
       totalLikes: safeNumber(stats.totalLikes),
       totalRetweets: safeNumber(stats.totalRetweets),
+      xFollowers: safeNumber(stats.xFollowers),
       completedTasks: safeNumber(stats.completedTasks),
     },
   };
@@ -343,6 +345,7 @@ export const usersRouter = createTRPCRouter({
           totalImpressions: 0,
           totalLikes: 0,
           totalRetweets: 0,
+          xFollowers: 0,
           completedTasks: 0,
         },
         joinedAt: new Date().toISOString().split("T")[0],
@@ -435,6 +438,7 @@ export const usersRouter = createTRPCRouter({
         impressions: z.number().optional(),
         likes: z.number().optional(),
         retweets: z.number().optional(),
+        xFollowers: z.number().optional(),
         posts: z.number().optional(),
         completedTasks: z.number().optional(),
       })
@@ -457,6 +461,9 @@ export const usersRouter = createTRPCRouter({
       }
       if (input.retweets !== undefined) {
         updatedStats.totalRetweets += input.retweets;
+      }
+      if (input.xFollowers !== undefined) {
+        updatedStats.xFollowers = input.xFollowers;
       }
       if (input.posts !== undefined) {
         updatedStats.totalPosts += input.posts;

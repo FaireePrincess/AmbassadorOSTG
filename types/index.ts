@@ -36,6 +36,7 @@ export interface User {
     totalImpressions: number;
     totalLikes: number;
     totalRetweets: number;
+    xFollowers?: number;
     completedTasks: number;
   };
   joinedAt: string;

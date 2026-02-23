@@ -397,7 +397,7 @@ export default function AdminScreen() {
           <Text style={styles.analyticsBtnText}>Program Analytics</Text>
         </PressableScale>
         <PressableScale style={styles.analyticsBtn} onPress={() => router.push('/admin/analytics/regions' as any)}>
-          <Text style={styles.analyticsBtnText}>Regional Analytics</Text>
+          <Text style={styles.analyticsBtnText}>Regional Dashboard</Text>
         </PressableScale>
       </View>
 

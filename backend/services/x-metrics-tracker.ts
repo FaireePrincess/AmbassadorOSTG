@@ -58,6 +58,10 @@ type TweetMetrics = {
   replies: number;
 };
 
+type UserMetrics = {
+  followers: number;
+};
+
 async function fetchTweetMetrics(tweetId: string): Promise<TweetMetrics> {
   const token = getTwitterToken();
   if (!token) throw new Error("TWITTER_BEARER_TOKEN is not configured");
@@ -82,6 +86,42 @@ async function fetchTweetMetrics(tweetId: string): Promise<TweetMetrics> {
     likes: metrics?.like_count || 0,
     retweets: metrics?.retweet_count || 0,
     replies: metrics?.reply_count || 0,
+  };
+}
+
+function normalizeTwitterHandle(handle?: string): string | null {
+  if (!handle) return null;
+  const trimmed = handle.trim();
+  if (!trimmed) return null;
+
+  const withoutAt = trimmed.replace(/^@+/, "");
+  const fromUrl = withoutAt.match(/(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})/i);
+  if (fromUrl?.[1]) return fromUrl[1];
+
+  const direct = withoutAt.match(/^([A-Za-z0-9_]{1,15})$/);
+  return direct?.[1] || null;
+}
+
+async function fetchUserMetricsByHandle(handle: string): Promise<UserMetrics> {
+  const token = getTwitterToken();
+  if (!token) throw new Error("TWITTER_BEARER_TOKEN is not configured");
+
+  const response = await fetch(
+    `https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}?user.fields=public_metrics`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`X user API error ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: { public_metrics?: { followers_count?: number } };
+  };
+
+  return {
+    followers: payload.data?.public_metrics?.followers_count || 0,
   };
 }
 
@@ -275,6 +315,7 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
 
     const regionByUserId = new Map(users.map((u) => [u.id, u.region]));
     const userById = new Map(users.map((u) => [u.id, u]));
+    const followerCache = new Map<string, number>();
     const regionEligible = submissions.filter(
       (submission) => canTrackSubmission(submission) && (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
     );
@@ -300,6 +341,19 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
         const xMetrics = await fetchTweetMetrics(tweetId);
         const expiry = getTrackingExpiry(submission);
         if (!expiry) continue;
+        const handle = normalizeTwitterHandle(user?.handles?.twitter);
+        const followerCacheKey = handle || `user:${submission.userId}`;
+        let followerCount = followerCache.get(followerCacheKey) || 0;
+
+        if (handle && !followerCache.has(followerCacheKey)) {
+          try {
+            const userMetrics = await fetchUserMetricsByHandle(handle);
+            followerCount = userMetrics.followers;
+          } catch {
+            followerCount = 0;
+          }
+          followerCache.set(followerCacheKey, followerCount);
+        }
 
         const nextMetrics = {
           impressions: xMetrics.impressions,
@@ -339,12 +393,30 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
           submission: { ...submission, metrics: nextMetrics },
           prevMetrics,
           regionAverageImpressions: regionAvgMap.get(region) || 0,
+          followerCount,
         });
 
         updatedSubmission.flaggedForReview = anomaly.flagged;
         updatedSubmission.flaggedReason = anomaly.reason;
 
         await db.update<Submission>(SUBMISSIONS_COLLECTION, submission.id, updatedSubmission);
+
+        if (user && followerCount > 0 && (user.stats?.xFollowers || 0) !== followerCount) {
+          await db.update<User>(USERS_COLLECTION, user.id, {
+            stats: {
+              ...user.stats,
+              xFollowers: followerCount,
+            },
+          });
+          userById.set(user.id, {
+            ...user,
+            stats: {
+              ...user.stats,
+              xFollowers: followerCount,
+            },
+          });
+        }
+
         processed += 1;
 
         pushLog({
