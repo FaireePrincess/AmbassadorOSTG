@@ -232,6 +232,22 @@ bun start --dev-client
 
 ## Advanced Features
 
+### Telegram Task Broadcasts
+
+To broadcast new active tasks to a private Telegram channel, set these backend environment variables:
+
+- `TELEGRAM_BOT_TOKEN`: Your bot token from BotFather
+- `TELEGRAM_TASK_CHANNEL_ID`: Target private channel ID (or channel username like `@your_channel`)
+
+When a task is created as `active` or updated from another status to `active`, the backend sends:
+
+```text
+New Task Available
+<Task Title>
+<Brief>
+<Deadline>
+```
+
 ### **Add a Database**
 
 Integrate with backend services:

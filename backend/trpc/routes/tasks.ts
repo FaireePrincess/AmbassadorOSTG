@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from "../create-context";
 import { tasks as initialTasks, campaigns } from "@/mocks/data";
 import { db } from "@/backend/db";
 import type { Task, TaskStatus, Platform } from "@/types";
+import { sendTaskActiveNotification } from "@/backend/services/telegram-notifications";
 
 const COLLECTION = "tasks";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
@@ -101,6 +102,13 @@ export const tasksRouter = createTRPCRouter({
       };
       
       await db.create(COLLECTION, newTask);
+
+      if (newTask.status === "active") {
+        const result = await sendTaskActiveNotification(newTask);
+        if (!result.sent) {
+          console.log("[Tasks] Telegram task notification skipped/failed:", result.reason);
+        }
+      }
       
       console.log("[Tasks] Created new task:", newTask.id);
       return newTask;
@@ -135,6 +143,14 @@ export const tasksRouter = createTRPCRouter({
       
       const updatedTask = { ...existing, ...input } as Task;
       await db.update(COLLECTION, input.id, updatedTask);
+
+      const becameActive = existing.status !== "active" && updatedTask.status === "active";
+      if (becameActive) {
+        const result = await sendTaskActiveNotification(updatedTask);
+        if (!result.sent) {
+          console.log("[Tasks] Telegram task activation notification skipped/failed:", result.reason);
+        }
+      }
       
       console.log("[Tasks] Updated task:", input.id);
       return updatedTask;
