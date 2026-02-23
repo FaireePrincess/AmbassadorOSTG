@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Users, FileCheck, BarChart3, Globe2, RadioTower, TimerReset, ChevronRight, Sparkles } from 'lucide-react-native';
+import { Users, FileCheck, BarChart3, Globe2, RadioTower, TimerReset, ChevronRight, Sparkles, Gamepad2 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,6 +67,14 @@ const ADMIN_ITEMS: AdminItem[] = [
     icon: TimerReset,
     colors: ['#34d399', '#10b981'],
     route: '/admin/management?section=season',
+  },
+  {
+    id: 'crosscraft',
+    title: 'CrossCraft Lab',
+    subtitle: 'Admin-only crossword testing sandbox',
+    icon: Gamepad2,
+    colors: ['#22c55e', '#0ea5e9'],
+    route: '/admin/crosscraft',
   },
 ];
 

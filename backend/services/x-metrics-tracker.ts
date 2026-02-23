@@ -167,6 +167,9 @@ function isCriticalError(message: string): boolean {
 
 let runInProgress = false;
 let scheduleTimer: ReturnType<typeof setTimeout> | null = null;
+let regionQueueTimers: Array<ReturnType<typeof setTimeout>> = [];
+let queuedRegionRuns: Array<{ region: string; runAt: number }> = [];
+let nextCycleAt = 0;
 let regionCursor = 0;
 let rateLimitedUntil = 0;
 
@@ -197,6 +200,38 @@ function pushLog(entry: XMetricsLogEntry) {
     xMetricsStatus.logs = xMetricsStatus.logs.slice(0, 1000);
   }
   pruneLogs();
+}
+
+function clearRegionQueue() {
+  for (const timer of regionQueueTimers) {
+    clearTimeout(timer);
+  }
+  regionQueueTimers = [];
+  queuedRegionRuns = [];
+}
+
+function updateNextScheduledRunAt() {
+  const now = Date.now();
+  if (rateLimitedUntil > now) {
+    xMetricsStatus.nextScheduledRunAt = new Date(rateLimitedUntil).toISOString();
+    return;
+  }
+
+  const pendingRuns = queuedRegionRuns
+    .map((run) => run.runAt)
+    .filter((runAt) => runAt > now)
+    .sort((a, b) => a - b);
+  if (pendingRuns.length > 0) {
+    xMetricsStatus.nextScheduledRunAt = new Date(pendingRuns[0]).toISOString();
+    return;
+  }
+
+  if (nextCycleAt > now) {
+    xMetricsStatus.nextScheduledRunAt = new Date(nextCycleAt).toISOString();
+    return;
+  }
+
+  xMetricsStatus.nextScheduledRunAt = undefined;
 }
 
 function getRegions(users: User[]): string[] {
@@ -430,7 +465,15 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
         if (message.includes("X API error 429") || message.includes("X user API error 429")) {
           hitRateLimit = true;
           rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-          xMetricsStatus.nextScheduledRunAt = new Date(rateLimitedUntil).toISOString();
+          clearRegionQueue();
+          nextCycleAt = rateLimitedUntil;
+          if (scheduleTimer) {
+            clearTimeout(scheduleTimer);
+          }
+          scheduleTimer = setTimeout(() => {
+            void startDailyRegionQueue("rate-limit-restart");
+          }, Math.max(1, rateLimitedUntil - Date.now()));
+          updateNextScheduledRunAt();
         }
         pushLog({
           id: `xlog-${Date.now()}-${submission.id}-error`,
@@ -476,22 +519,60 @@ export async function runXMetricsTrackingBatch(reason = "scheduled", regionOverr
 }
 
 export function startXMetricsScheduler() {
-  if (scheduleTimer) return;
+  if (scheduleTimer || regionQueueTimers.length > 0) return;
+  void startDailyRegionQueue("startup");
+}
 
-  const scheduleNext = () => {
-    xMetricsStatus.nextScheduledRunAt = new Date(Date.now() + HOURLY_MS).toISOString();
-    scheduleTimer = setTimeout(async () => {
-      try {
-        await runXMetricsTrackingBatch("hourly-region");
-      } catch {
-      } finally {
-        scheduleNext();
-      }
-    }, HOURLY_MS);
-  };
+async function startDailyRegionQueue(reason: string) {
+  if (Date.now() < rateLimitedUntil) {
+    nextCycleAt = rateLimitedUntil;
+    if (scheduleTimer) {
+      clearTimeout(scheduleTimer);
+    }
+    scheduleTimer = setTimeout(() => {
+      void startDailyRegionQueue("rate-limit-resume");
+    }, Math.max(1, rateLimitedUntil - Date.now()));
+    updateNextScheduledRunAt();
+    return;
+  }
 
-  void runXMetricsTrackingBatch("startup");
-  scheduleNext();
+  clearRegionQueue();
+  const cycleStart = Date.now();
+  nextCycleAt = cycleStart + DAY_MS;
+
+  try {
+    const users = await db.getCollection<User>(USERS_COLLECTION);
+    const regions = getRegions(users);
+    xMetricsStatus.regions = regions;
+
+    for (let index = 0; index < regions.length; index++) {
+      const region = regions[index];
+      const runAt = cycleStart + index * HOURLY_MS;
+      queuedRegionRuns.push({ region, runAt });
+      const timer = setTimeout(async () => {
+        queuedRegionRuns = queuedRegionRuns.filter((item) => !(item.region === region && item.runAt === runAt));
+        updateNextScheduledRunAt();
+        try {
+          await runXMetricsTrackingBatch("daily-region", region);
+        } catch {
+        } finally {
+          updateNextScheduledRunAt();
+        }
+      }, Math.max(1, runAt - Date.now()));
+      regionQueueTimers.push(timer);
+    }
+  } catch {
+  }
+
+  if (scheduleTimer) {
+    clearTimeout(scheduleTimer);
+  }
+  scheduleTimer = setTimeout(() => {
+    void startDailyRegionQueue("daily-cycle");
+  }, Math.max(1, nextCycleAt - Date.now()));
+
+  xMetricsStatus.lastReason = reason;
+  updateNextScheduledRunAt();
 }
 
 export function getXMetricsStatus(): XMetricsStatus {

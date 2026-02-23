@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CrossCraft — Crossword Generator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header>
+      <h1>Cross<span>Craft</span></h1>
+      <p>Offline crossword puzzle generator — no dependencies, no server.</p>
+    </header>
+
+    <div class="layout">
+
+      <!-- ── Input sidebar ─────────────────────────────── -->
+      <aside class="panel">
+        <div>
+          <label for="word-input">Words &amp; Clues</label>
+          <textarea
+            id="word-input"
+            spellcheck="false"
+            placeholder="WORD clue text here&#10;ANOTHER another clue here"
+          ></textarea>
+        </div>
+
+        <p class="hint">
+          One entry per line &nbsp;·&nbsp; format: <code>WORD clue text</code><br>
+          Up to 12 words &nbsp;·&nbsp; minimum 2 letters each
+        </p>
+
+        <p class="error-msg" id="error-msg" role="alert"></p>
+
+        <button class="btn-primary" id="generate-btn">Generate Puzzle</button>
+        <button class="btn-secondary btn-mini" id="daily-btn">Load Daily STEPN/GO Mini</button>
+        <p class="hint" id="daily-meta"></p>
+      </aside>
+
+      <!-- ── Puzzle area ───────────────────────────────── -->
+      <main class="puzzle-area">
+
+        <section id="puzzle-section" hidden>
+
+          <div class="puzzle-toolbar btn-group">
+            <button class="btn-secondary" id="toggle-btn">Show Answers</button>
+            <button class="btn-secondary" id="export-btn">Export PNG</button>
+            <button class="btn-secondary" id="print-btn">Print</button>
+          </div>
+
+          <p class="warning" id="warnings" hidden></p>
+
+          <div class="grid-scroll">
+            <div id="grid-container" role="grid" aria-label="Crossword grid"></div>
+          </div>
+
+          <div class="clues-wrapper">
+            <h2>Clues</h2>
+            <ol id="clues-list"></ol>
+          </div>
+
+        </section>
+
+      </main>
+
+    </div><!-- /.layout -->
+  </div><!-- /.app -->
+
+  <script src="app.js"></script>
+</body>
+</html>
