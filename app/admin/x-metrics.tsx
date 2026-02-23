@@ -6,6 +6,7 @@ import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
 import PressableScale from '@/components/PressableScale';
+import AppBackButton from '@/components/AppBackButton';
 
 export default function AdminXMetricsScreen() {
   const router = useRouter();
@@ -53,9 +54,7 @@ export default function AdminXMetricsScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
-          <PressableScale style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>Back</Text>
-          </PressableScale>
+          <AppBackButton onPress={() => router.back()} />
           <Text style={styles.title}>X Metrics</Text>
           <View style={{ width: 52 }} />
         </View>
@@ -167,19 +166,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 2,
-  },
-  backBtn: {
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  backBtnText: {
-    color: Colors.dark.text,
-    fontSize: 12,
-    fontWeight: '700',
   },
   title: {
     color: Colors.dark.text,

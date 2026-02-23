@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import LoadingScreen from '@/components/LoadingScreen';
+import AppBackButton from '@/components/AppBackButton';
 import { Platform as PlatformType, Submission } from '@/types';
 
 export default function TaskDetailScreen() {
@@ -122,9 +123,7 @@ export default function TaskDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.errorText}>Task not found</Text>
-        <PressableScale style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </PressableScale>
+        <AppBackButton onPress={() => router.back()} style={styles.backButton} />
       </SafeAreaView>
     );
   }
@@ -381,15 +380,6 @@ const styles = StyleSheet.create({
   backButton: {
     marginTop: 20,
     alignSelf: 'center',
-    backgroundColor: Colors.dark.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  backButtonText: {
-    color: Colors.dark.primary,
-    fontSize: 15,
-    fontWeight: '600' as const,
   },
   header: {
     padding: 20,

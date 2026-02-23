@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, X } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import Image from '@/components/StableImage';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,7 @@ import { normalizeAvatarUri } from '@/constants/avatarPresets';
 import PlatformBadge from '@/components/PlatformBadge';
 import LoadingScreen from '@/components/LoadingScreen';
 import PressableScale from '@/components/PressableScale';
+import AppBackButton from '@/components/AppBackButton';
 import type { User } from '@/types';
 
 export default function RegionalLeaderboardScreen() {
@@ -98,10 +99,7 @@ export default function RegionalLeaderboardScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <PressableScale style={styles.backBtn} onPress={() => router.back()}>
-              <ChevronLeft size={18} color={Colors.dark.text} />
-              <Text style={styles.backBtnText}>Back</Text>
-            </PressableScale>
+            <AppBackButton onPress={() => router.back()} />
           </View>
           <Text style={styles.title}>{region} Regional Leaderboard</Text>
           <Text style={styles.subtitle}>Local rank, performance, and feed activity</Text>
@@ -248,22 +246,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.surface,
-  },
-  backBtnText: {
-    color: Colors.dark.text,
-    fontSize: 12,
-    fontWeight: '600',
   },
   title: {
     color: Colors.dark.text,

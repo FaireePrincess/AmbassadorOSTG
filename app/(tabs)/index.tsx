@@ -15,6 +15,70 @@ import StatCard from '@/components/StatCard';
 import PlatformBadge from '@/components/PlatformBadge';
 import PressableScale from '@/components/PressableScale';
 import LoadingScreen from '@/components/LoadingScreen';
+import Typography from '@/constants/typography';
+
+function getTaskProgressTone(progress: number, totalActiveTasks: number) {
+  if (totalActiveTasks === 0) {
+    return {
+      cardBg: Colors.dark.surface,
+      cardBorder: Colors.dark.border,
+      fill: Colors.dark.textMuted,
+      percent: Colors.dark.textSecondary,
+    };
+  }
+
+  if (progress <= 0) {
+    return {
+      cardBg: '#4A1118',
+      cardBorder: '#B91C1C',
+      fill: '#EF4444',
+      percent: '#FCA5A5',
+    };
+  }
+
+  if (progress < 0.25) {
+    return {
+      cardBg: '#4A2A0C',
+      cardBorder: '#C2410C',
+      fill: '#F97316',
+      percent: '#FDBA74',
+    };
+  }
+
+  if (progress < 0.5) {
+    return {
+      cardBg: '#3F2D0F',
+      cardBorder: '#CA8A04',
+      fill: '#EAB308',
+      percent: '#FDE68A',
+    };
+  }
+
+  if (progress < 0.75) {
+    return {
+      cardBg: '#263615',
+      cardBorder: '#65A30D',
+      fill: '#84CC16',
+      percent: '#D9F99D',
+    };
+  }
+
+  if (progress < 1) {
+    return {
+      cardBg: '#123126',
+      cardBorder: '#10B981',
+      fill: '#22C55E',
+      percent: '#86EFAC',
+    };
+  }
+
+  return {
+    cardBg: '#0D3A26',
+    cardBorder: '#22C55E',
+    fill: '#4ADE80',
+    percent: '#BBF7D0',
+  };
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -50,6 +114,11 @@ export default function HomeScreen() {
     if (total === 0) return 0;
     return Math.min(1, Math.max(0, completedActiveTasks / total));
   }, [activeTasksAll.length, completedActiveTasks]);
+
+  const taskProgressTone = useMemo(
+    () => getTaskProgressTone(taskProgress, activeTasksAll.length),
+    [taskProgress, activeTasksAll.length]
+  );
   
   const feedPosts = useMemo(() => {
     if (backendEnabled) {
@@ -194,17 +263,33 @@ export default function HomeScreen() {
 
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Tasks Completed</Text>
-          <PressableScale style={styles.progressCard} onPress={() => router.push('/(tabs)/tasks')}>
+          <PressableScale
+            style={[
+              styles.progressCard,
+              {
+                backgroundColor: taskProgressTone.cardBg,
+                borderColor: taskProgressTone.cardBorder,
+              },
+            ]}
+            onPress={() => router.push('/(tabs)/tasks')}
+          >
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>
                 {activeTasksAll.length === 0
                   ? 'No active tasks right now'
                   : `${completedActiveTasks}/${activeTasksAll.length} active tasks completed`}
               </Text>
-              <Text style={styles.progressPercent}>{Math.round(taskProgress * 100)}%</Text>
+              <Text style={[styles.progressPercent, { color: taskProgressTone.percent }]}>
+                {Math.round(taskProgress * 100)}%
+              </Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.round(taskProgress * 100)}%` }]} />
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${Math.round(taskProgress * 100)}%`, backgroundColor: taskProgressTone.fill },
+                ]}
+              />
             </View>
           </PressableScale>
 
@@ -214,23 +299,23 @@ export default function HomeScreen() {
             <StatCard label="Views" value={userStats.totalImpressions} color={Colors.dark.secondary} compact />
             <StatCard label="Likes" value={userStats.totalLikes} color={Colors.dark.accent} compact />
           </View>
-          <View style={styles.newsCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.newsTitle}>What's News</Text>
-              <View style={styles.newsActions}>
-                {isAdmin && (
-                  <PressableScale onPress={() => newsQuery.refetch()} style={styles.newsRefreshBtn}>
-                    <Plus size={14} color={Colors.dark.secondary} />
-                  </PressableScale>
-                )}
-                {latestNewsUrl ? (
-                  <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
-                    <Text style={styles.seeAllText}>Open</Text>
-                    <ChevronRight size={16} color={Colors.dark.primary} />
-                  </PressableScale>
-                ) : null}
-              </View>
+          <View style={styles.newsHeader}>
+            <Text style={styles.sectionTitle}>What's News</Text>
+            <View style={styles.newsActions}>
+              {isAdmin && (
+                <PressableScale onPress={() => newsQuery.refetch()} style={styles.newsRefreshBtn}>
+                  <Plus size={14} color={Colors.dark.secondary} />
+                </PressableScale>
+              )}
+              {latestNewsUrl ? (
+                <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
+                  <Text style={styles.seeAllText}>Open</Text>
+                  <ChevronRight size={16} color={Colors.dark.primary} />
+                </PressableScale>
+              ) : null}
             </View>
+          </View>
+          <View style={styles.newsCard}>
             <Text style={styles.newsText} numberOfLines={3}>
               {latestNews?.text || 'No live update available right now.'}
             </Text>
@@ -305,7 +390,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   greeting: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.textSecondary,
   },
   userName: {
@@ -340,7 +425,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   rankLabel: {
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.textSecondary,
   },
   rankValue: {
@@ -357,7 +442,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.primary,
   },
   pointsLabel: {
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.textSecondary,
   },
   statsSection: {
@@ -381,13 +466,13 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.textSecondary,
   },
   progressPercent: {
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.primary,
-    fontWeight: '700' as const,
+    fontWeight: Typography.weights.bold,
   },
   progressTrack: {
     width: '100%',
@@ -414,10 +499,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.border,
     padding: 12,
   },
-  newsTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.dark.text,
+  newsHeader: {
+    marginTop: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   newsActions: {
     flexDirection: 'row',
@@ -437,7 +524,7 @@ const styles = StyleSheet.create({
   newsText: {
     marginTop: 4,
     color: Colors.dark.textSecondary,
-    fontSize: 13,
+    fontSize: Typography.sizes.body,
     lineHeight: 19,
   },
   newsImage: {
@@ -459,8 +546,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h3,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   headerActions: {
@@ -487,9 +574,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   seeAllText: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.primary,
-    fontWeight: '600' as const,
+    fontWeight: Typography.weights.semibold,
   },
   taskCard: {
     backgroundColor: Colors.dark.surface,
