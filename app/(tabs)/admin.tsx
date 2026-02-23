@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,6 +7,7 @@ import { Users, FileCheck, BarChart3, Globe2, RadioTower, TimerReset, ChevronRig
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
+import { trpc } from '@/lib/trpc';
 
 type AdminItem = {
   id: string;
@@ -70,7 +71,27 @@ const ADMIN_ITEMS: AdminItem[] = [
 
 export default function AdminHubScreen() {
   const router = useRouter();
-  const { isAdmin } = useAuth();
+  const { isAdmin, currentUser } = useAuth();
+  const newsQuery = trpc.news.getCurrent.useQuery(undefined, { enabled: isAdmin });
+  const saveNewsMutation = trpc.news.upsert.useMutation({
+    onSuccess: () => {
+      Alert.alert('Saved', 'What\'s News has been updated.');
+      void newsQuery.refetch();
+    },
+    onError: (error) => {
+      Alert.alert('Update failed', error.message || 'Could not save news update.');
+    },
+  });
+  const [newsPostUrl, setNewsPostUrl] = useState('');
+  const [newsText, setNewsText] = useState('');
+  const [newsImageUrl, setNewsImageUrl] = useState('');
+
+  useEffect(() => {
+    if (!newsQuery.data) return;
+    setNewsPostUrl(newsQuery.data.postUrl || '');
+    setNewsText(newsQuery.data.text || '');
+    setNewsImageUrl(newsQuery.data.imageUrl || '');
+  }, [newsQuery.data]);
 
   if (!isAdmin) {
     return (
@@ -117,6 +138,66 @@ export default function AdminHubScreen() {
               </PressableScale>
             );
           })}
+        </View>
+
+        <View style={styles.newsEditorCard}>
+          <Text style={styles.newsEditorTitle}>What's News (Manual)</Text>
+          <Text style={styles.newsEditorSubtitle}>Set Home news without calling X API.</Text>
+
+          <TextInput
+            style={styles.newsInput}
+            placeholder="Post URL (https://x.com/.../status/...)"
+            placeholderTextColor={Colors.dark.textMuted}
+            autoCapitalize="none"
+            keyboardType="url"
+            value={newsPostUrl}
+            onChangeText={setNewsPostUrl}
+          />
+
+          <TextInput
+            style={[styles.newsInput, styles.newsTextArea]}
+            placeholder="Short summary shown on Home"
+            placeholderTextColor={Colors.dark.textMuted}
+            multiline
+            numberOfLines={3}
+            value={newsText}
+            onChangeText={setNewsText}
+          />
+
+          <TextInput
+            style={styles.newsInput}
+            placeholder="Optional image URL"
+            placeholderTextColor={Colors.dark.textMuted}
+            autoCapitalize="none"
+            keyboardType="url"
+            value={newsImageUrl}
+            onChangeText={setNewsImageUrl}
+          />
+
+          <PressableScale
+            style={[styles.newsSaveBtn, saveNewsMutation.isPending && styles.newsSaveBtnDisabled]}
+            onPress={() => {
+              if (!currentUser?.id) {
+                Alert.alert('Error', 'Active admin session required');
+                return;
+              }
+              if (!newsPostUrl.trim()) {
+                Alert.alert('Missing URL', 'Please enter the X post URL.');
+                return;
+              }
+              saveNewsMutation.mutate({
+                adminUserId: currentUser.id,
+                postUrl: newsPostUrl.trim(),
+                text: newsText.trim(),
+                imageUrl: newsImageUrl.trim(),
+              });
+            }}
+            disabled={saveNewsMutation.isPending}
+          >
+            <Text style={styles.newsSaveBtnText}>
+              {saveNewsMutation.isPending ? 'Saving...' : 'Save Home News'}
+            </Text>
+          </PressableScale>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -221,5 +302,53 @@ const styles = StyleSheet.create({
   blockedText: {
     color: Colors.dark.textSecondary,
     fontSize: 13,
+  },
+  newsEditorCard: {
+    marginTop: 6,
+    backgroundColor: '#171924',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#24283a',
+    padding: 12,
+    gap: 9,
+  },
+  newsEditorTitle: {
+    color: Colors.dark.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  newsEditorSubtitle: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+  },
+  newsInput: {
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.surface,
+    color: Colors.dark.text,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  newsTextArea: {
+    minHeight: 76,
+    textAlignVertical: 'top',
+  },
+  newsSaveBtn: {
+    marginTop: 2,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.dark.primary,
+  },
+  newsSaveBtnDisabled: {
+    opacity: 0.7,
+  },
+  newsSaveBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, Tou
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award, Plus } from 'lucide-react-native';
+import { ChevronRight, Award } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
@@ -82,17 +82,19 @@ function getTaskProgressTone(progress: number, totalActiveTasks: number) {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { currentUser, users, refreshUsers, isAdmin } = useAuth();
+  const { currentUser, users, refreshUsers } = useAuth();
   const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
   const backendEnabled = isBackendEnabled();
   const userSubmissions = useUserSubmissions(currentUser?.id);
-  const newsQuery = trpc.twitter.getUserTimeline.useQuery(
-    { username: 'stepnofficial', maxResults: 1 },
+  const newsQuery = trpc.news.getCurrent.useQuery(
+    undefined,
     {
       enabled: backendEnabled,
       retry: false,
-      staleTime: 15 * 60 * 1000,
+      staleTime: Infinity,
+      refetchOnReconnect: false,
       refetchOnWindowFocus: false,
+      refetchOnMount: false,
     }
   );
 
@@ -219,8 +221,8 @@ export default function HomeScreen() {
   }
 
   const user = currentUser;
-  const latestNews = newsQuery.data?.[0] || null;
-  const latestNewsUrl = latestNews?.id ? `https://x.com/stepnofficial/status/${latestNews.id}` : '';
+  const latestNews = newsQuery.data || null;
+  const latestNewsUrl = latestNews?.postUrl || '';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -302,11 +304,6 @@ export default function HomeScreen() {
           <View style={styles.newsHeader}>
             <Text style={styles.sectionTitle}>What's News</Text>
             <View style={styles.newsActions}>
-              {isAdmin && (
-                <PressableScale onPress={() => newsQuery.refetch()} style={styles.newsRefreshBtn}>
-                  <Plus size={14} color={Colors.dark.secondary} />
-                </PressableScale>
-              )}
               {latestNewsUrl ? (
                 <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
                   <Text style={styles.seeAllText}>Open</Text>
@@ -510,16 +507,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  newsRefreshBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.dark.secondary + '80',
-    backgroundColor: Colors.dark.secondary + '14',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   newsText: {
     marginTop: 4,
