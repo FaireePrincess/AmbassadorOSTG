@@ -171,7 +171,9 @@ export const twitterRouter = createTRPCRouter({
           throw new Error("User not found");
         }
 
-        const maxResults = input.maxResults || 10;
+        // X API /users/:id/tweets enforces a minimum max_results (1 can return 400).
+        const requested = input.maxResults || 10;
+        const maxResults = Math.max(5, Math.min(100, requested));
         const tweetsResponse = await fetch(
           `https://api.twitter.com/2/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=public_metrics,created_at`,
           {

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, Tou
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award } from 'lucide-react-native';
+import { ChevronRight, Award, Plus } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
@@ -18,13 +18,18 @@ import LoadingScreen from '@/components/LoadingScreen';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { currentUser, users, refreshUsers } = useAuth();
+  const { currentUser, users, refreshUsers, isAdmin } = useAuth();
   const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
   const backendEnabled = isBackendEnabled();
   const userSubmissions = useUserSubmissions(currentUser?.id);
   const newsQuery = trpc.twitter.getUserTimeline.useQuery(
     { username: 'stepnofficial', maxResults: 1 },
-    { enabled: backendEnabled, retry: false }
+    {
+      enabled: backendEnabled,
+      retry: false,
+      staleTime: 15 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    }
   );
 
   const activeTasksAll = useMemo(() => tasks.filter((task) => task.status === 'active'), [tasks]);
@@ -212,12 +217,19 @@ export default function HomeScreen() {
           <View style={styles.newsCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.newsTitle}>What's News</Text>
-              {latestNewsUrl ? (
-                <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
-                  <Text style={styles.seeAllText}>Open</Text>
-                  <ChevronRight size={16} color={Colors.dark.primary} />
-                </PressableScale>
-              ) : null}
+              <View style={styles.newsActions}>
+                {isAdmin && (
+                  <PressableScale onPress={() => newsQuery.refetch()} style={styles.newsRefreshBtn}>
+                    <Plus size={14} color={Colors.dark.secondary} />
+                  </PressableScale>
+                )}
+                {latestNewsUrl ? (
+                  <PressableScale onPress={() => openPostUrl(latestNewsUrl)} style={styles.seeAllBtn}>
+                    <Text style={styles.seeAllText}>Open</Text>
+                    <ChevronRight size={16} color={Colors.dark.primary} />
+                  </PressableScale>
+                ) : null}
+              </View>
             </View>
             <Text style={styles.newsText} numberOfLines={3}>
               {latestNews?.text || 'No live update available right now.'}
@@ -397,6 +409,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.dark.text,
+  },
+  newsActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  newsRefreshBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.dark.secondary + '80',
+    backgroundColor: Colors.dark.secondary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   newsText: {
     marginTop: 4,
