@@ -1,11 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
+import AppBackButton from '@/components/AppBackButton';
 
 export default function AdminAnalyticsScreen() {
+  const router = useRouter();
   const { currentUser, isAdmin } = useAuth();
   const analyticsQuery = trpc.admin.analytics.useQuery(
     { adminUserId: currentUser?.id || '' },
@@ -41,6 +45,7 @@ export default function AdminAnalyticsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <AppBackButton onPress={() => router.back()} />
         <Text style={styles.title}>Program Analytics</Text>
         <View style={styles.card}>
           <Text style={styles.label}>Total submissions</Text>
@@ -75,8 +80,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.dark.text,
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     marginBottom: 8,
   },
   card: {
@@ -88,17 +93,17 @@ const styles = StyleSheet.create({
   },
   label: {
     color: Colors.dark.textSecondary,
-    fontSize: 13,
+    fontSize: Typography.sizes.body,
   },
   value: {
     color: Colors.dark.text,
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: Typography.sizes.h3,
+    fontWeight: Typography.weights.bold,
     marginTop: 4,
   },
   error: {
     color: Colors.dark.error,
     padding: 20,
-    fontSize: 15,
+    fontSize: Typography.sizes.body,
   },
 });

@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
     marginTop: 2,
   },
@@ -426,16 +426,16 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   rankValue: {
-    fontSize: 20,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h3,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   pointsContainer: {
     alignItems: 'flex-end',
   },
   pointsValue: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.primary,
   },
   pointsLabel: {

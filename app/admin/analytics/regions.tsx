@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Svg, { Defs, LinearGradient, Path, Polyline, Stop } from 'react-native-svg';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import PressableScale from '@/components/PressableScale';
+import AppBackButton from '@/components/AppBackButton';
 
 type WindowKey = '7d' | '30d' | '90d' | 'all';
 
@@ -94,6 +97,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function AdminRegionalAnalyticsScreen() {
+  const router = useRouter();
   const { users, isLoading: authLoading, currentUser } = useAuth();
   const { submissions, isLoading: appLoading } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
@@ -212,6 +216,7 @@ export default function AdminRegionalAnalyticsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <AppBackButton onPress={() => router.back()} />
         <Text style={styles.title}>Regional Performance Dashboard</Text>
 
         <View style={styles.windowRow}>
@@ -327,8 +332,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.dark.text,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     marginBottom: 2,
   },
   windowRow: {

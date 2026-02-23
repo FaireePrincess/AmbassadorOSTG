@@ -2,9 +2,10 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TextInput, Alert, RefreshControl, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { FileCheck, Clock, CheckCircle, XCircle, Edit3, ExternalLink, Star, X, Users, MessageSquare, TrendingUp, AlertCircle, RotateCcw, RefreshCw, Eye, Heart, Repeat, MessageCircle, ChevronLeft } from 'lucide-react-native';
+import { FileCheck, Clock, CheckCircle, XCircle, Edit3, ExternalLink, Star, X, Users, MessageSquare, TrendingUp, AlertCircle, RotateCcw, RefreshCw, Eye, Heart, Repeat, MessageCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
 import { Submission, SubmissionRating, SubmissionStatus, Platform } from '@/types';
@@ -13,6 +14,7 @@ import StatusBadge from '@/components/StatusBadge';
 import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 import { trpc } from '@/lib/trpc';
+import AppBackButton from '@/components/AppBackButton';
 
 type FilterTab = 'pending' | 'approved' | 'needs_edits' | 'rejected';
 
@@ -210,10 +212,7 @@ function AdminReviewScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerMain}>
-          <PressableScale style={styles.backBtn} onPress={() => router.push('/(tabs)/admin' as any)}>
-            <ChevronLeft size={16} color={Colors.dark.text} />
-            <Text style={styles.backBtnText}>Admin</Text>
-          </PressableScale>
+          <AppBackButton onPress={() => router.push('/(tabs)/admin' as any)} label="Admin" style={styles.backBtn} />
           <Text style={styles.headerTitle}>Review Submissions</Text>
         </View>
         <View style={styles.headerStats}>
@@ -985,24 +984,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    marginRight: 2,
   },
   backBtnText: {
     color: Colors.dark.textSecondary,
-    fontSize: 12,
-    fontWeight: '600' as const,
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.semibold,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   headerStats: {

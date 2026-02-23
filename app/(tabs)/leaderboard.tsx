@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Trophy, Globe2, BarChart3 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
+import AppButton from '@/components/AppButton';
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -115,9 +117,7 @@ export default function LeaderboardScreen() {
       >
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
-            <PressableScale style={styles.closeBtn} onPress={() => setSelectedUserId(null)}>
-              <Text style={styles.closeBtnText}>Close</Text>
-            </PressableScale>
+            <AppButton label="Close" size="sm" variant="ghost" onPress={() => setSelectedUserId(null)} />
             <Text style={styles.modalTitle}>Recap Card</Text>
             <View style={{ width: 62 }} />
           </View>
@@ -177,8 +177,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.dark.background },
   content: { padding: 16, paddingBottom: 36, gap: 12 },
   header: { gap: 4 },
-  title: { color: Colors.dark.text, fontSize: 28, fontWeight: '800' },
-  subtitle: { color: Colors.dark.textSecondary, fontSize: 13 },
+  title: { color: Colors.dark.text, fontSize: Typography.sizes.h1, fontWeight: Typography.weights.bold },
+  subtitle: { color: Colors.dark.textSecondary, fontSize: Typography.sizes.body },
   quickRow: { flexDirection: 'row', gap: 10 },
   quickCard: {
     flex: 1,
@@ -189,11 +189,11 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 6,
   },
-  quickTitle: { color: Colors.dark.text, fontSize: 14, fontWeight: '700' },
-  quickMeta: { color: Colors.dark.textMuted, fontSize: 12 },
+  quickTitle: { color: Colors.dark.text, fontSize: Typography.sizes.body, fontWeight: Typography.weights.bold },
+  quickMeta: { color: Colors.dark.textMuted, fontSize: Typography.sizes.caption },
   sectionHeader: { marginTop: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { color: Colors.dark.text, fontSize: 18, fontWeight: '700' },
+  sectionTitle: { color: Colors.dark.text, fontSize: Typography.sizes.h3, fontWeight: Typography.weights.bold },
   limitRow: { flexDirection: 'row', gap: 6 },
   limitBtn: {
     borderWidth: 1,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.surface,
   },
   limitBtnActive: { borderColor: Colors.dark.primary, backgroundColor: Colors.dark.primary + '18' },
-  limitBtnText: { color: Colors.dark.textSecondary, fontSize: 12, fontWeight: '600' },
+  limitBtnText: { color: Colors.dark.textSecondary, fontSize: Typography.sizes.caption, fontWeight: Typography.weights.semibold },
   limitBtnTextActive: { color: Colors.dark.primary },
   listCard: {
     backgroundColor: Colors.dark.surface,
@@ -231,11 +231,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.dark.surfaceLight,
   },
-  rankText: { color: Colors.dark.text, fontSize: 12, fontWeight: '700' },
+  rankText: { color: Colors.dark.text, fontSize: Typography.sizes.caption, fontWeight: Typography.weights.bold },
   userCol: { flex: 1 },
-  name: { color: Colors.dark.text, fontSize: 14, fontWeight: '600' },
-  region: { color: Colors.dark.textMuted, fontSize: 12 },
-  points: { color: Colors.dark.warning, fontSize: 13, fontWeight: '700' },
+  name: { color: Colors.dark.text, fontSize: Typography.sizes.body, fontWeight: Typography.weights.semibold },
+  region: { color: Colors.dark.textMuted, fontSize: Typography.sizes.caption },
+  points: { color: Colors.dark.warning, fontSize: Typography.sizes.body, fontWeight: Typography.weights.bold },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,19 +243,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
-  },
-  closeBtn: {
-    borderWidth: 1,
-    borderColor: Colors.dark.primary,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: Colors.dark.primary + '18',
-  },
-  closeBtnText: {
-    color: Colors.dark.primary,
-    fontSize: 12,
-    fontWeight: '700',
   },
   modalTitle: {
     color: Colors.dark.text,

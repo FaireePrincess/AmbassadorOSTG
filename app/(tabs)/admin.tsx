@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Users, FileCheck, BarChart3, Globe2, RadioTower, TimerReset, ChevronRight, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import PressableScale from '@/components/PressableScale';
 import { trpc } from '@/lib/trpc';
@@ -236,18 +237,18 @@ const styles = StyleSheet.create({
   },
   headerBadgeText: {
     color: Colors.dark.secondaryLight,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.semibold,
   },
   title: {
     color: Colors.dark.text,
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: Typography.sizes.h1,
+    fontWeight: Typography.weights.bold,
     letterSpacing: 0.4,
   },
   subtitle: {
     color: Colors.dark.textSecondary,
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     lineHeight: 20,
   },
   list: {
@@ -277,12 +278,12 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     color: Colors.dark.text,
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: Typography.sizes.title,
+    fontWeight: Typography.weights.bold,
   },
   rowSubtitle: {
     color: Colors.dark.textMuted,
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     lineHeight: 16,
   },
   blockedCard: {
@@ -295,13 +296,13 @@ const styles = StyleSheet.create({
   },
   blockedTitle: {
     color: Colors.dark.error,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: Typography.sizes.title,
+    fontWeight: Typography.weights.bold,
     marginBottom: 6,
   },
   blockedText: {
     color: Colors.dark.textSecondary,
-    fontSize: 13,
+    fontSize: Typography.sizes.body,
   },
   newsEditorCard: {
     marginTop: 6,

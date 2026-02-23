@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Zap, Clock, Users, ListTodo, Plus, Trash2, Edit3, X, Check, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +15,7 @@ import PressableScale from '@/components/PressableScale';
 import EmptyState from '@/components/EmptyState';
 import { Platform as PlatformType, Task } from '@/types';
 import ImagePicker from '@/components/ImagePicker';
+import AppButton from '@/components/AppButton';
 
 type FilterType = 'all' | 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook';
 type ImageInputMode = 'upload' | 'url';
@@ -248,10 +250,7 @@ export default function TasksScreen() {
             <Text style={styles.subtitle}>{filteredTasks.length} active tasks available</Text>
           </View>
           {isAdmin && (
-            <PressableScale style={styles.addBtn} onPress={openAddModal} hapticType="medium">
-              <Plus size={20} color="#FFF" />
-              <Text style={styles.addBtnText}>Add</Text>
-            </PressableScale>
+            <AppButton label="Add" size="sm" onPress={openAddModal} icon={<Plus size={16} color="#FFF" />} />
           )}
         </View>
       </View>
@@ -626,12 +625,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h1,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.textSecondary,
     marginTop: 4,
   },
@@ -645,8 +644,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   addBtnText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
+    fontSize: Typography.sizes.body,
+    fontWeight: Typography.weights.semibold,
     color: '#FFF',
   },
   filterScroll: {
@@ -684,8 +683,8 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h3,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
     paddingHorizontal: 20,
     marginBottom: 12,

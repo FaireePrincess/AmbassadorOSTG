@@ -2,9 +2,10 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions, Linking } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, ChevronLeft, Pencil } from 'lucide-react-native';
+import { Search, Download, FileImage, FileVideo, FileText, Layout, FolderOpen, Plus, Trash2, Edit3, X, Check, Pencil } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import PlatformBadge from '@/components/PlatformBadge';
@@ -13,6 +14,8 @@ import EmptyState from '@/components/EmptyState';
 import { AssetType, Asset, AssetFolder, Platform as PlatformType } from '@/types';
 import ImagePicker from '@/components/ImagePicker';
 import { DEFAULT_ASSET_FOLDER_ID } from '@/constants/assetFolders';
+import AppButton from '@/components/AppButton';
+import AppBackButton from '@/components/AppBackButton';
 
 type FolderKey = string;
 
@@ -365,9 +368,7 @@ export default function AssetsScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <View style={styles.folderHeader}>
-            <PressableScale style={styles.backBtn} onPress={goBack} hapticType="light">
-              <ChevronLeft size={24} color={Colors.dark.text} />
-            </PressableScale>
+            <AppBackButton onPress={goBack} style={styles.backBtn} />
             <View style={styles.folderHeaderInfo}>
               <View style={[styles.folderHeaderIcon, { backgroundColor: activeFolderConfig.color + '20' }]}>
                 <FolderOpen size={20} color={activeFolderConfig.color} />
@@ -377,11 +378,7 @@ export default function AssetsScreen() {
                 <Text style={styles.subtitle}>{filteredAssets.length} assets</Text>
               </View>
             </View>
-            {isAdmin && (
-              <PressableScale style={styles.addBtnSmall} onPress={openAddModal} hapticType="medium">
-                <Plus size={20} color="#FFF" />
-              </PressableScale>
-            )}
+            {isAdmin && <AppButton label="Upload" size="sm" onPress={openAddModal} icon={<Plus size={16} color="#FFF" />} />}
           </View>
         </View>
 
@@ -699,18 +696,8 @@ export default function AssetsScreen() {
             <Text style={styles.subtitle}>{assets.length} total assets</Text>
           </View>
           <View style={styles.headerActions}>
-            {isAdmin && (
-              <PressableScale style={styles.addBtnSecondary} onPress={openCreateFolder} hapticType="medium">
-                <FolderOpen size={16} color={Colors.dark.text} />
-                <Text style={styles.addBtnSecondaryText}>Folder</Text>
-              </PressableScale>
-            )}
-            {isAdmin && (
-              <PressableScale style={styles.addBtnSmall} onPress={openAddModal} hapticType="medium">
-                <Plus size={20} color="#FFF" />
-                <Text style={styles.addBtnText}>Upload</Text>
-              </PressableScale>
-            )}
+            {isAdmin && <AppButton label="Folder" size="sm" variant="secondary" onPress={openCreateFolder} icon={<FolderOpen size={14} color={Colors.dark.text} />} />}
+            {isAdmin && <AppButton label="Upload" size="sm" onPress={openAddModal} icon={<Plus size={16} color="#FFF" />} />}
           </View>
         </View>
       </View>
@@ -1049,12 +1036,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h1,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.textSecondary,
     marginTop: 4,
   },
@@ -1097,8 +1084,8 @@ const styles = StyleSheet.create({
   },
   addBtnSecondaryText: {
     color: Colors.dark.text,
-    fontSize: 13,
-    fontWeight: '600' as const,
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.semibold,
   },
   addBtnSmall: {
     flexDirection: 'row',
@@ -1110,8 +1097,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   addBtnText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
+    fontSize: Typography.sizes.body,
+    fontWeight: Typography.weights.semibold,
     color: '#FFF',
   },
   searchContainer: {

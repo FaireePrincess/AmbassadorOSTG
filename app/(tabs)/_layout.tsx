@@ -5,6 +5,7 @@ import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
@@ -37,8 +38,8 @@ export default function TabLayout() {
           height: 64 + Math.max(insets.bottom, Platform.OS === 'ios' ? 14 : 10),
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: Typography.sizes.caption,
+          fontWeight: Typography.weights.semibold,
           marginTop: 4,
         },
         headerShown: false,

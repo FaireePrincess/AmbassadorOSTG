@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import Typography from '@/constants/typography';
 import { useApp, useUserSubmissions } from '@/contexts/AppContext';
 import { AVATAR_PRESETS, normalizeAvatarUri } from '@/constants/avatarPresets';
 import { getBuildLabel } from '@/constants/buildInfo';
@@ -1020,8 +1021,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.h2,
+    fontWeight: Typography.weights.bold,
     color: Colors.dark.text,
     marginBottom: 2,
   },
@@ -1124,8 +1125,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+    fontSize: Typography.sizes.title,
+    fontWeight: Typography.weights.semibold,
     color: Colors.dark.text,
     marginBottom: 12,
   },
@@ -1239,7 +1240,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
   tabCardSubtitle: {
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.textMuted,
     marginTop: 4,
   },
@@ -1261,7 +1262,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
   },
   sectionHeaderSubtitle: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.textMuted,
   },
   submissionCard: {
@@ -1544,8 +1545,8 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
+    fontSize: Typography.sizes.title,
+    fontWeight: Typography.weights.bold,
     color: '#FFF',
   },
   modalBottomPadding: {
@@ -1584,7 +1585,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
   },
   changePasswordSubtitle: {
-    fontSize: 12,
+    fontSize: Typography.sizes.caption,
     color: Colors.dark.textMuted,
     marginTop: 2,
   },
@@ -1608,7 +1609,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   passwordHeaderSubtitle: {
-    fontSize: 14,
+    fontSize: Typography.sizes.body,
     color: Colors.dark.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 20,
