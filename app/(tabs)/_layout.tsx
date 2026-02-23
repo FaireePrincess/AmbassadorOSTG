@@ -84,13 +84,13 @@ export default function TabLayout() {
         options={{
           title: 'Review',
           tabBarIcon: ({ color, size }) => <FileCheck size={size} color={color} />,
-          href: isAdmin ? '/(tabs)/submissions' : null,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="admin"
         options={{
-          title: 'Admin',
+          title: 'Admin Only',
           tabBarIcon: ({ color, size }) => <Shield size={size} color={color} />,
           href: isAdmin ? '/(tabs)/admin' : null,
         }}
