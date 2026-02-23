@@ -242,10 +242,21 @@ To broadcast new active tasks to a private Telegram channel, set these backend e
 When a task is created as `active` or updated from another status to `active`, the backend sends:
 
 ```text
-New Task Available
 <Task Title>
 <Brief>
-<Deadline>
+Deadline: <Deadline>
+```
+
+If the task has an HTTP(S) thumbnail URL, the bot sends the image with this text as the caption.
+
+For events, the backend checks online events every 5 minutes and sends a one-time reminder about 1 hour before start:
+
+```text
+Reminder: Meeting starts in 1 hour
+<Event Title>
+Date: <YYYY-MM-DD>
+Time: <HH:mm Timezone>
+Link: <Meeting URL>
 ```
 
 ### **Add a Database**
