@@ -57,6 +57,10 @@ export default function EventsScreen() {
     { region: currentUser?.region },
     { enabled: Boolean(currentUser?.id) }
   );
+  const latestCompletedPollQuery = trpc.polls.latestCompleted.useQuery(
+    { region: currentUser?.region },
+    { enabled: Boolean(currentUser?.id) }
+  );
   const pollResultsQuery = trpc.polls.results.useQuery(
     { pollId: selectedPollId || '' },
     { enabled: Boolean(selectedPollId && isPollModalVisible) }
@@ -71,7 +75,7 @@ export default function EventsScreen() {
   });
   const createPollMutation = trpc.polls.create.useMutation({
     onSuccess: async () => {
-      await pollsQuery.refetch();
+      await Promise.all([pollsQuery.refetch(), latestCompletedPollQuery.refetch()]);
       setIsCreatePollModalVisible(false);
       setPollForm({
         title: '',
@@ -107,8 +111,8 @@ export default function EventsScreen() {
 
   const handleRefresh = useCallback(() => {
     refreshData();
-    void pollsQuery.refetch();
-  }, [refreshData, pollsQuery]);
+    void Promise.all([pollsQuery.refetch(), latestCompletedPollQuery.refetch()]);
+  }, [refreshData, pollsQuery, latestCompletedPollQuery]);
 
   const openPollModal = useCallback((pollId: string) => {
     setSelectedPollId(pollId);
@@ -384,6 +388,21 @@ export default function EventsScreen() {
           ) : (
             <View style={styles.pollEmpty}>
               <Text style={styles.pollEmptyText}>No active polls right now.</Text>
+            </View>
+          )}
+
+          {latestCompletedPollQuery.data?.poll && (
+            <View style={styles.lastPollCard}>
+              <Text style={styles.lastPollTitle}>Last Completed Poll</Text>
+              <Text style={styles.lastPollName}>{latestCompletedPollQuery.data.poll.title}</Text>
+              {!!latestCompletedPollQuery.data.poll.description && (
+                <Text style={styles.lastPollSummary}>{latestCompletedPollQuery.data.poll.description}</Text>
+              )}
+              <Text style={styles.lastPollMeta}>Total votes: {latestCompletedPollQuery.data.totalVotes}</Text>
+              <Text style={styles.lastPollMeta}>
+                Winner: {latestCompletedPollQuery.data.winner?.label || 'No votes yet'}
+                {latestCompletedPollQuery.data.winner ? ` (${latestCompletedPollQuery.data.winner.votes})` : ''}
+              </Text>
             </View>
           )}
         </View>
@@ -934,6 +953,35 @@ const styles = StyleSheet.create({
   pollEmptyText: {
     color: Colors.dark.textMuted,
     fontSize: 13,
+  },
+  lastPollCard: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.surface,
+    padding: 12,
+  },
+  lastPollTitle: {
+    color: Colors.dark.text,
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  lastPollName: {
+    color: Colors.dark.primary,
+    fontSize: 14,
+    fontWeight: '700' as const,
+    marginTop: 6,
+  },
+  lastPollSummary: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginTop: 6,
+  },
+  lastPollMeta: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    marginTop: 6,
   },
   pollResultWrap: {
     paddingBottom: 24,

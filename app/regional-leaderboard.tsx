@@ -14,10 +14,22 @@ import PressableScale from '@/components/PressableScale';
 import AppBackButton from '@/components/AppBackButton';
 import type { User } from '@/types';
 
+const QUALITY_MAX = {
+  relevanceToTask: 25,
+  creativity: 15,
+  originality: 15,
+  effortFormat: 15,
+  enthusiasmTone: 10,
+} as const;
+
+function formatWholePoints(value: number) {
+  return Math.ceil(value).toLocaleString();
+}
+
 export default function RegionalLeaderboardScreen() {
   const router = useRouter();
   const { currentUser, users, refreshUsers, isAdmin } = useAuth();
-  const { ambassadorFeed, refreshData, isRefreshing } = useApp();
+  const { ambassadorFeed, refreshData, isRefreshing, allSubmissions } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [selectedAmbassador, setSelectedAmbassador] = useState<User | null>(null);
   const canBrowseAllRegions = Boolean(isAdmin || currentUser?.role === 'regional_lead');
@@ -77,6 +89,44 @@ export default function RegionalLeaderboardScreen() {
     ];
     return handles.filter((item) => (item.value || '').trim().length > 0);
   }, [selectedAmbassador]);
+
+  const selectedQuality = useMemo(() => {
+    if (!selectedAmbassador) {
+      return {
+        completedTasks: 0,
+        relevanceToTask: { current: 0, max: 0 },
+        creativity: { current: 0, max: 0 },
+        originality: { current: 0, max: 0 },
+        effortFormat: { current: 0, max: 0 },
+        enthusiasmTone: { current: 0, max: 0 },
+      };
+    }
+
+    const ratedApproved = allSubmissions.filter(
+      (submission) =>
+        submission.userId === selectedAmbassador.id &&
+        submission.status === 'approved' &&
+        submission.rating
+    );
+    const completedTasks = ratedApproved.length;
+
+    const totalByKey = {
+      relevanceToTask: ratedApproved.reduce((sum, item) => sum + (item.rating?.relevanceToTask || 0), 0),
+      creativity: ratedApproved.reduce((sum, item) => sum + (item.rating?.creativity || 0), 0),
+      originality: ratedApproved.reduce((sum, item) => sum + (item.rating?.originality || 0), 0),
+      effortFormat: ratedApproved.reduce((sum, item) => sum + (item.rating?.effortFormat || 0), 0),
+      enthusiasmTone: ratedApproved.reduce((sum, item) => sum + (item.rating?.enthusiasmTone || 0), 0),
+    };
+
+    return {
+      completedTasks,
+      relevanceToTask: { current: totalByKey.relevanceToTask, max: completedTasks * QUALITY_MAX.relevanceToTask },
+      creativity: { current: totalByKey.creativity, max: completedTasks * QUALITY_MAX.creativity },
+      originality: { current: totalByKey.originality, max: completedTasks * QUALITY_MAX.originality },
+      effortFormat: { current: totalByKey.effortFormat, max: completedTasks * QUALITY_MAX.effortFormat },
+      enthusiasmTone: { current: totalByKey.enthusiasmTone, max: completedTasks * QUALITY_MAX.enthusiasmTone },
+    };
+  }, [allSubmissions, selectedAmbassador]);
 
   if (!currentUser) {
     return <LoadingScreen message="Loading regional board..." />;
@@ -152,7 +202,7 @@ export default function RegionalLeaderboardScreen() {
                     <Text style={styles.meta}>{user.stats.totalPosts} posts</Text>
                   </View>
                 </View>
-                <Text style={styles.points}>{user.points.toLocaleString()}</Text>
+                <Text style={styles.points}>{formatWholePoints(user.points)}</Text>
               </PressableScale>
             ))}
           </View>
@@ -202,9 +252,23 @@ export default function RegionalLeaderboardScreen() {
                   <Text style={styles.recapStatLabel}>Ranking</Text>
                 </View>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedAmbassador.points.toLocaleString()}</Text>
+                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedAmbassador.points)}</Text>
                   <Text style={styles.recapStatLabel}>Points</Text>
                 </View>
+              </View>
+
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>Tasks Completed</Text>
+                <Text style={styles.detailItem}>{selectedQuality.completedTasks}</Text>
+              </View>
+
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>Content Quality and Execution</Text>
+                <Text style={styles.detailItem}>Relevance to Task: {selectedQuality.relevanceToTask.current}/{selectedQuality.relevanceToTask.max}</Text>
+                <Text style={styles.detailItem}>Creativity: {selectedQuality.creativity.current}/{selectedQuality.creativity.max}</Text>
+                <Text style={styles.detailItem}>Originality: {selectedQuality.originality.current}/{selectedQuality.originality.max}</Text>
+                <Text style={styles.detailItem}>Effort and Format: {selectedQuality.effortFormat.current}/{selectedQuality.effortFormat.max}</Text>
+                <Text style={styles.detailItem}>Enthusiasm and Tone: {selectedQuality.enthusiasmTone.current}/{selectedQuality.enthusiasmTone.max}</Text>
               </View>
 
               <View style={styles.detailCard}>

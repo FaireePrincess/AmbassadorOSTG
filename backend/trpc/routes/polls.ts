@@ -140,4 +140,54 @@ export const pollsRouter = createTRPCRouter({
         })),
       };
     }),
+
+  latestCompleted: publicProcedure
+    .input(z.object({ region: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const [polls, options, votes] = await Promise.all([
+        db.getCollection<Poll>(POLLS_COLLECTION),
+        db.getCollection<PollOption>(POLL_OPTIONS_COLLECTION),
+        db.getCollection<PollVote>(POLL_VOTES_COLLECTION),
+      ]);
+
+      const now = Date.now();
+      const completed = polls
+        .filter((poll) => {
+          if (input?.region && poll.region && poll.region !== input.region) return false;
+          return Date.parse(poll.expiresAt) <= now;
+        })
+        .sort((a, b) => Date.parse(b.expiresAt) - Date.parse(a.expiresAt));
+
+      const latest = completed[0];
+      if (!latest) return null;
+
+      const latestOptions = options.filter((option) => option.pollId === latest.id);
+      const latestVotes = votes.filter((vote) => vote.pollId === latest.id);
+      const counts = new Map<string, number>();
+
+      for (const vote of latestVotes) {
+        counts.set(vote.optionId, (counts.get(vote.optionId) || 0) + 1);
+      }
+
+      const optionsWithVotes = latestOptions.map((option) => ({
+        ...option,
+        votes: counts.get(option.id) || 0,
+      }));
+
+      const winner = optionsWithVotes
+        .slice()
+        .sort((a, b) => b.votes - a.votes || a.label.localeCompare(b.label))[0];
+
+      return {
+        poll: latest,
+        totalVotes: latestVotes.length,
+        winner: winner
+          ? {
+              optionId: winner.id,
+              label: winner.label,
+              votes: winner.votes,
+            }
+          : null,
+      };
+    }),
 });

@@ -6,12 +6,26 @@ import { Trophy, Globe2, BarChart3 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 import PressableScale from '@/components/PressableScale';
 import AppButton from '@/components/AppButton';
+
+const QUALITY_MAX = {
+  relevanceToTask: 25,
+  creativity: 15,
+  originality: 15,
+  effortFormat: 15,
+  enthusiasmTone: 10,
+} as const;
+
+function formatWholePoints(value: number) {
+  return Math.ceil(value).toLocaleString();
+}
 
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { users, currentUser } = useAuth();
+  const { allSubmissions } = useApp();
   const [limit, setLimit] = useState<10 | 50>(10);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const canAccessRegionalDashboard = currentUser?.role === 'admin' || currentUser?.role === 'regional_lead';
@@ -49,6 +63,44 @@ export default function LeaderboardScreen() {
     ];
     return handles.filter((item) => (item.value || '').trim().length > 0);
   }, [selectedUser]);
+
+  const selectedQuality = useMemo(() => {
+    if (!selectedUser) {
+      return {
+        completedTasks: 0,
+        relevanceToTask: { current: 0, max: 0 },
+        creativity: { current: 0, max: 0 },
+        originality: { current: 0, max: 0 },
+        effortFormat: { current: 0, max: 0 },
+        enthusiasmTone: { current: 0, max: 0 },
+      };
+    }
+
+    const ratedApproved = allSubmissions.filter(
+      (submission) =>
+        submission.userId === selectedUser.id &&
+        submission.status === 'approved' &&
+        submission.rating
+    );
+    const completedTasks = ratedApproved.length;
+
+    const totalByKey = {
+      relevanceToTask: ratedApproved.reduce((sum, item) => sum + (item.rating?.relevanceToTask || 0), 0),
+      creativity: ratedApproved.reduce((sum, item) => sum + (item.rating?.creativity || 0), 0),
+      originality: ratedApproved.reduce((sum, item) => sum + (item.rating?.originality || 0), 0),
+      effortFormat: ratedApproved.reduce((sum, item) => sum + (item.rating?.effortFormat || 0), 0),
+      enthusiasmTone: ratedApproved.reduce((sum, item) => sum + (item.rating?.enthusiasmTone || 0), 0),
+    };
+
+    return {
+      completedTasks,
+      relevanceToTask: { current: totalByKey.relevanceToTask, max: completedTasks * QUALITY_MAX.relevanceToTask },
+      creativity: { current: totalByKey.creativity, max: completedTasks * QUALITY_MAX.creativity },
+      originality: { current: totalByKey.originality, max: completedTasks * QUALITY_MAX.originality },
+      effortFormat: { current: totalByKey.effortFormat, max: completedTasks * QUALITY_MAX.effortFormat },
+      enthusiasmTone: { current: totalByKey.enthusiasmTone, max: completedTasks * QUALITY_MAX.enthusiasmTone },
+    };
+  }, [allSubmissions, selectedUser]);
 
   const rows = overall.slice(0, limit);
 
@@ -102,7 +154,7 @@ export default function LeaderboardScreen() {
                   <Text style={styles.name}>{entry.name}</Text>
                   <Text style={styles.region}>{entry.region}</Text>
                 </View>
-                <Text style={styles.points}>{entry.points.toLocaleString()} pts</Text>
+                <Text style={styles.points}>{formatWholePoints(entry.points)} pts</Text>
               </PressableScale>
             );
           })}
@@ -135,8 +187,37 @@ export default function LeaderboardScreen() {
                   <Text style={styles.recapStatLabel}>Ranking</Text>
                 </View>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedUser.points.toLocaleString()}</Text>
+                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedUser.points)}</Text>
                   <Text style={styles.recapStatLabel}>Points</Text>
+                </View>
+              </View>
+
+              <View style={styles.recapPanel}>
+                <Text style={styles.recapPanelTitle}>Tasks Completed</Text>
+                <Text style={styles.recapCompletedValue}>{selectedQuality.completedTasks}</Text>
+              </View>
+
+              <View style={styles.recapPanel}>
+                <Text style={styles.recapPanelTitle}>Content Quality and Execution</Text>
+                <View style={styles.qualityRow}>
+                  <Text style={styles.qualityLabel}>Relevance to Task</Text>
+                  <Text style={styles.qualityValue}>{selectedQuality.relevanceToTask.current}/{selectedQuality.relevanceToTask.max}</Text>
+                </View>
+                <View style={styles.qualityRow}>
+                  <Text style={styles.qualityLabel}>Creativity</Text>
+                  <Text style={styles.qualityValue}>{selectedQuality.creativity.current}/{selectedQuality.creativity.max}</Text>
+                </View>
+                <View style={styles.qualityRow}>
+                  <Text style={styles.qualityLabel}>Originality</Text>
+                  <Text style={styles.qualityValue}>{selectedQuality.originality.current}/{selectedQuality.originality.max}</Text>
+                </View>
+                <View style={styles.qualityRow}>
+                  <Text style={styles.qualityLabel}>Effort and Format</Text>
+                  <Text style={styles.qualityValue}>{selectedQuality.effortFormat.current}/{selectedQuality.effortFormat.max}</Text>
+                </View>
+                <View style={styles.qualityRow}>
+                  <Text style={styles.qualityLabel}>Enthusiasm and Tone</Text>
+                  <Text style={styles.qualityValue}>{selectedQuality.enthusiasmTone.current}/{selectedQuality.enthusiasmTone.max}</Text>
                 </View>
               </View>
 
@@ -330,6 +411,29 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: 12,
     marginTop: 2,
+  },
+  recapCompletedValue: {
+    color: Colors.dark.primary,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  qualityLabel: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+  },
+  qualityValue: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    fontWeight: '700',
   },
   socialRow: {
     flexDirection: 'row',
