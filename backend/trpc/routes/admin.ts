@@ -65,9 +65,9 @@ export const adminRouter = createTRPCRouter({
     .input(z.object({ adminUserId: z.string(), region: z.string().optional() }))
     .mutation(async ({ input }) => {
       await ensureAdmin(input.adminUserId);
-      // Manual admin runs can bypass scheduler cooldown, but use a conservative mini-batch.
+      // Manual admin runs default to safe mode (respect cooldown and daily per-region cap).
       return runXMetricsTrackingBatch("manual-admin", input.region, {
-        ignoreRateLimit: true,
+        ignoreRateLimit: false,
         maxBatch: 5,
       });
     }),

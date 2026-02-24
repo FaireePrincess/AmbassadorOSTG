@@ -188,6 +188,7 @@ let xMetricsStatus: XMetricsStatus = {
 type RunOptions = {
   ignoreRateLimit?: boolean;
   maxBatch?: number;
+  force?: boolean;
 };
 
 function pruneLogs() {
@@ -265,6 +266,14 @@ function pickNextRegion(regions: string[]): string | null {
   }
 
   return null;
+}
+
+function hasRegionRunWithinDay(region: string): boolean {
+  const last = xMetricsStatus.regionLastRunAt[region];
+  if (!last) return false;
+  const lastTs = Date.parse(last);
+  if (Number.isNaN(lastTs)) return false;
+  return Date.now() - lastTs < DAY_MS;
 }
 
 async function getRegionAverageImpressionsMap(users: User[], submissions: Submission[]): Promise<Map<string, number>> {
@@ -357,6 +366,17 @@ export async function runXMetricsTrackingBatch(
       xMetricsStatus.lastRemaining = 0;
       xMetricsStatus.lastDurationMs = Date.now() - startedAt;
       return { processed: 0, remaining: 0, errors: 0 };
+    }
+
+    if (!options?.force && hasRegionRunWithinDay(targetRegion)) {
+      xMetricsStatus.lastRunAt = new Date().toISOString();
+      xMetricsStatus.lastRegion = targetRegion;
+      xMetricsStatus.lastReason = `${reason}-skipped-not-due`;
+      xMetricsStatus.lastProcessed = 0;
+      xMetricsStatus.lastErrors = 0;
+      xMetricsStatus.lastRemaining = 0;
+      xMetricsStatus.lastDurationMs = Date.now() - startedAt;
+      return { processed: 0, remaining: 0, errors: 0, region: targetRegion };
     }
 
     const regionByUserId = new Map(users.map((u) => [u.id, u.region]));
