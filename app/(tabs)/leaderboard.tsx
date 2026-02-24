@@ -2,13 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Trophy, Globe2, BarChart3 } from 'lucide-react-native';
+import { Trophy, Globe2, BarChart3, X } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import PressableScale from '@/components/PressableScale';
-import AppButton from '@/components/AppButton';
 
 const QUALITY_MAX = {
   relevanceToTask: 25,
@@ -169,9 +168,11 @@ export default function LeaderboardScreen() {
       >
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
-            <AppButton label="Close" size="sm" variant="ghost" onPress={() => setSelectedUserId(null)} />
+            <PressableScale style={styles.modalIconBtn} onPress={() => setSelectedUserId(null)} testID="close-recap-modal">
+              <X size={22} color={Colors.dark.text} />
+            </PressableScale>
             <Text style={styles.modalTitle}>Recap Card</Text>
-            <View style={{ width: 62 }} />
+            <View style={styles.modalIconBtnPlaceholder} />
           </View>
 
           {selectedUser && (
@@ -324,6 +325,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  modalIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalIconBtnPlaceholder: {
+    width: 30,
+    height: 30,
   },
   modalTitle: {
     color: Colors.dark.text,
