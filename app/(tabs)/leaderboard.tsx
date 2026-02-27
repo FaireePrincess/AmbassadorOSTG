@@ -21,6 +21,13 @@ function formatWholePoints(value: number) {
   return Math.ceil(value).toLocaleString();
 }
 
+function getRankMedal(rank: number): string | null {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return null;
+}
+
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { users, currentUser } = useAuth();
@@ -102,6 +109,22 @@ export default function LeaderboardScreen() {
   }, [allSubmissions, selectedUser]);
 
   const rows = overall.slice(0, limit);
+  const currentUserEntry = useMemo(
+    () => overall.find((entry) => entry.id === currentUser?.id) || null,
+    [overall, currentUser?.id]
+  );
+  const showPinnedCurrentUser = Boolean(currentUserEntry && !rows.some((entry) => entry.id === currentUserEntry.id));
+
+  const regionalLeaderPreview = useMemo(() => {
+    const totals = overall.reduce<Map<string, number>>((map, entry) => {
+      const region = entry.region || 'Unknown';
+      map.set(region, (map.get(region) || 0) + entry.points);
+      return map;
+    }, new Map());
+    const topRegion = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!topRegion) return 'No region trend yet';
+    return `${topRegion[0]} leading right now`;
+  }, [overall]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -121,7 +144,7 @@ export default function LeaderboardScreen() {
             <PressableScale style={styles.quickCard} onPress={() => router.push('/admin/analytics/regions' as any)}>
               <BarChart3 size={18} color={Colors.dark.primary} />
               <Text style={styles.quickTitle}>Regional Dashboard</Text>
-              <Text style={styles.quickMeta}>KPIs and trends</Text>
+              <Text style={styles.quickMeta}>{regionalLeaderPreview}</Text>
             </PressableScale>
           )}
         </View>
@@ -141,19 +164,36 @@ export default function LeaderboardScreen() {
           </View>
         </View>
 
+        {showPinnedCurrentUser && currentUserEntry && (
+          <View style={styles.currentUserCard}>
+            <Text style={styles.currentUserTitle}>Your Rank: #{currentUserEntry.rank}</Text>
+            <Text style={styles.currentUserMeta}>
+              {formatWholePoints(currentUserEntry.points)} pts • {currentUserEntry.stats.completedTasks} tasks completed
+            </Text>
+          </View>
+        )}
+
         <View style={styles.listCard}>
           {rows.map((entry) => {
             const isCurrent = entry.id === currentUser?.id;
+            const previous = entry.rank > 1 ? overall[entry.rank - 2] : null;
+            const delta = previous ? Math.max(0, Math.ceil(previous.points - entry.points)) : 0;
+            const medal = getRankMedal(entry.rank);
             return (
               <PressableScale key={entry.id} style={[styles.row, isCurrent && styles.rowCurrent]} onPress={() => setSelectedUserId(entry.id)}>
-                <View style={styles.rankPill}>
-                  <Text style={styles.rankText}>{entry.rank}</Text>
+                <View style={[styles.rankPill, medal && styles.rankPillMedal]}>
+                  <Text style={styles.rankText}>{medal || entry.rank}</Text>
                 </View>
                 <View style={styles.userCol}>
                   <Text style={styles.name}>{entry.name}</Text>
-                  <Text style={styles.region}>{entry.region}</Text>
+                  <Text style={styles.region}>{entry.region} • {entry.stats.completedTasks} tasks</Text>
                 </View>
-                <Text style={styles.points}>{formatWholePoints(entry.points)} pts</Text>
+                <View style={styles.pointsCol}>
+                  <Text style={styles.points}>{formatWholePoints(entry.points)} pts</Text>
+                  <Text style={styles.pointsDelta}>
+                    {entry.rank === 1 ? 'Leading' : `${delta} pts behind #${entry.rank - 1}`}
+                  </Text>
+                </View>
               </PressableScale>
             );
           })}
@@ -305,6 +345,25 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.dark.border,
   },
   rowCurrent: { backgroundColor: Colors.dark.primary + '14' },
+  currentUserCard: {
+    marginTop: 4,
+    backgroundColor: Colors.dark.primary + '14',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '66',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  currentUserTitle: {
+    color: Colors.dark.text,
+    fontSize: Typography.sizes.body,
+    fontWeight: Typography.weights.bold,
+  },
+  currentUserMeta: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.caption,
+  },
   rankPill: {
     minWidth: 28,
     height: 28,
@@ -313,11 +372,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.dark.surfaceLight,
   },
+  rankPillMedal: {
+    minWidth: 34,
+  },
   rankText: { color: Colors.dark.text, fontSize: Typography.sizes.caption, fontWeight: Typography.weights.bold },
   userCol: { flex: 1 },
   name: { color: Colors.dark.text, fontSize: Typography.sizes.body, fontWeight: Typography.weights.semibold },
   region: { color: Colors.dark.textMuted, fontSize: Typography.sizes.caption },
+  pointsCol: {
+    alignItems: 'flex-end',
+  },
   points: { color: Colors.dark.warning, fontSize: Typography.sizes.body, fontWeight: Typography.weights.bold },
+  pointsDelta: { color: Colors.dark.textMuted, fontSize: Typography.sizes.caption },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',

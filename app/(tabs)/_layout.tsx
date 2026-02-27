@@ -62,7 +62,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Leaderboard',
+          title: 'Leaders',
           tabBarIcon: ({ color, size }) => <Trophy size={size} color={color} />,
         }}
       />
@@ -98,7 +98,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="admin"
         options={{
-          title: 'Admin Only',
+          title: 'Admin',
           tabBarIcon: ({ color, size }) => <Shield size={size} color={color} />,
           href: isAdmin ? '/(tabs)/admin' : null,
         }}

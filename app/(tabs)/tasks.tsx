@@ -23,12 +23,22 @@ type ImageInputMode = 'upload' | 'url';
 const PLATFORM_OPTIONS: PlatformType[] = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'telegram'];
 const INLINE_IMAGE_LIMIT_BYTES = 225_000;
 const TASK_IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=300&fit=crop';
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 function taskDeadlineTimestamp(task: Task): number {
   const deadline = task.deadline?.trim();
   if (!deadline) return Number.POSITIVE_INFINITY;
   const parsed = Date.parse(deadline);
   return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
+function getDeadlineUrgency(deadline: string): 'normal' | 'warn' | 'critical' {
+  const deadlineTs = Date.parse(deadline || '');
+  if (Number.isNaN(deadlineTs)) return 'normal';
+  const hoursRemaining = (deadlineTs - Date.now()) / ONE_HOUR_MS;
+  if (hoursRemaining <= 24) return 'critical';
+  if (hoursRemaining <= 48) return 'warn';
+  return 'normal';
 }
 
 function estimateDataUriBytes(value: string): number | null {
@@ -320,6 +330,7 @@ export default function TasksScreen() {
           ) : (
             filteredTasks.map((task) => {
               const isSubmitted = currentUser ? hasUserSubmittedTask(currentUser.id, task.id) : false;
+              const deadlineUrgency = getDeadlineUrgency(task.deadline);
               return (
               <PressableScale 
                 key={task.id} 
@@ -374,9 +385,30 @@ export default function TasksScreen() {
                   <Text style={styles.taskBrief} numberOfLines={2}>{task.brief}</Text>
 
                 <View style={styles.taskMeta}>
-                  <View style={styles.metaItem}>
-                    <Clock size={14} color={Colors.dark.textMuted} />
-                    <Text style={styles.metaText}>
+                  <View
+                    style={[
+                      styles.metaItem,
+                      deadlineUrgency === 'warn' && styles.metaItemWarn,
+                      deadlineUrgency === 'critical' && styles.metaItemCritical,
+                    ]}
+                  >
+                    <Clock
+                      size={14}
+                      color={
+                        deadlineUrgency === 'critical'
+                          ? '#FCA5A5'
+                          : deadlineUrgency === 'warn'
+                            ? '#FCD34D'
+                            : Colors.dark.textMuted
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.metaText,
+                        deadlineUrgency === 'warn' && styles.metaTextWarn,
+                        deadlineUrgency === 'critical' && styles.metaTextCritical,
+                      ]}
+                    >
                       Due {new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </Text>
                   </View>
@@ -828,9 +860,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  metaItemWarn: {
+    backgroundColor: '#4A2A0C',
+    borderWidth: 1,
+    borderColor: '#C2410C',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  metaItemCritical: {
+    backgroundColor: '#4A1118',
+    borderWidth: 1,
+    borderColor: '#B91C1C',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
   metaText: {
     fontSize: 13,
     color: Colors.dark.textMuted,
+  },
+  metaTextWarn: {
+    color: '#FCD34D',
+    fontWeight: '700' as const,
+  },
+  metaTextCritical: {
+    color: '#FCA5A5',
+    fontWeight: '700' as const,
   },
   hashtagsContainer: {
     flexDirection: 'row',

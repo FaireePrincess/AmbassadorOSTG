@@ -313,18 +313,28 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.newsCard}>
-            <Text style={styles.newsText} numberOfLines={3}>
-              {latestNews?.text || 'No live update available right now.'}
-            </Text>
+            <View style={styles.newsCopyBlock}>
+              <Text style={styles.newsText} numberOfLines={3}>
+                {latestNews?.text || 'No live update available right now.'}
+              </Text>
+            </View>
             {latestNews?.imageUrl ? (
-              <Image
-                source={latestNews.imageUrl}
-                style={styles.newsImage}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                transition={0}
-              />
+              <View style={styles.newsMediaFrame}>
+                <Image
+                  source={latestNews.imageUrl}
+                  style={styles.newsImage}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={0}
+                />
+              </View>
             ) : null}
+            <View style={styles.newsFooterRow}>
+              <Text style={styles.newsFooterText}>
+                {latestNews?.imageUrl ? 'Latest campaign visual' : 'Live update stream'}
+              </Text>
+              {latestNewsUrl ? <Text style={styles.newsFooterHint}>Tap Open</Text> : null}
+            </View>
           </View>
         </View>
 
@@ -490,11 +500,12 @@ const styles = StyleSheet.create({
   },
   newsCard: {
     marginTop: 0,
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: '#151826',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: '#2a2f48',
     padding: 12,
+    gap: 10,
   },
   newsHeader: {
     marginTop: 16,
@@ -508,20 +519,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  newsCopyBlock: {
+    backgroundColor: '#101425',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#24283a',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
   newsText: {
-    marginTop: 4,
     color: Colors.dark.textSecondary,
     fontSize: Typography.sizes.body,
     lineHeight: 19,
   },
-  newsImage: {
-    marginTop: 10,
-    width: '100%',
-    height: 104,
-    borderRadius: 10,
+  newsMediaFrame: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.surfaceLight,
+    borderColor: '#2a2f48',
+    overflow: 'hidden',
+    backgroundColor: '#0d1220',
+  },
+  newsImage: {
+    width: '100%',
+    height: 132,
+  },
+  newsFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  newsFooterText: {
+    color: Colors.dark.textMuted,
+    fontSize: Typography.sizes.caption,
+  },
+  newsFooterHint: {
+    color: Colors.dark.primary,
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.semibold,
   },
   section: {
     paddingHorizontal: 20,
