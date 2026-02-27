@@ -83,13 +83,16 @@ export const seasonsRouter = createTRPCRouter({
       const usersToReset = users;
       const resetOps = usersToReset.map((user) =>
         db.update<User>("users", user.id, {
+          ...user,
           points: 0,
           rank: 0,
           stats: {
+            ...user.stats,
             totalPosts: 0,
             totalImpressions: 0,
             totalLikes: 0,
             totalRetweets: 0,
+            xFollowers: 0,
             completedTasks: 0,
           },
         })

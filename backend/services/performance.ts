@@ -232,9 +232,8 @@ export async function recomputeAllUserPerformance(): Promise<void> {
   await Promise.all(
     refreshedUsers.map((user) =>
       db.update<User>(USERS_COLLECTION, user.id, {
-        points: user.points,
+        ...user,
         rank: rankMap.get(user.id) || 0,
-        stats: user.stats,
       })
     )
   );

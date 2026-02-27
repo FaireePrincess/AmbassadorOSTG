@@ -466,19 +466,17 @@ export async function runXMetricsTrackingBatch(
         await db.update<Submission>(SUBMISSIONS_COLLECTION, submission.id, updatedSubmission);
 
         if (user && followerCount > 0 && (user.stats?.xFollowers || 0) !== followerCount) {
-          await db.update<User>(USERS_COLLECTION, user.id, {
-            stats: {
-              ...user.stats,
-              xFollowers: followerCount,
-            },
-          });
-          userById.set(user.id, {
+          const updatedUser: User = {
             ...user,
             stats: {
               ...user.stats,
               xFollowers: followerCount,
             },
+          };
+          await db.update<User>(USERS_COLLECTION, user.id, {
+            ...updatedUser,
           });
+          userById.set(user.id, updatedUser);
         }
 
         processed += 1;
