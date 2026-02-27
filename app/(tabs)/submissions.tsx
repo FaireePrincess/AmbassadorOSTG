@@ -39,10 +39,10 @@ function computeSuggestedXEngagementScore(impressions: number, followerCount?: n
   }
 
   const reachRatio = safeImpressions / safeFollowers;
-  if (reachRatio < 0.1) return 0;
-  if (reachRatio < 0.3) return 5;
-  if (reachRatio < 0.6) return 10;
-  if (reachRatio < 1.0) return 15;
+  if (reachRatio < 0.2) return 0;
+  if (reachRatio < 0.5) return 5;
+  if (reachRatio < 1.5) return 10;
+  if (reachRatio < 3.0) return 15;
   return 20;
 }
 

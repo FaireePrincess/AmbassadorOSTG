@@ -360,7 +360,22 @@ export async function create<T extends DbRecord>(collection: string, data: T): P
 
 export async function update<T extends DbRecord>(collection: string, id: string, data: Partial<T>): Promise<T | null> {
   const remoteConfigured = hasRemoteDbConfig();
-  const result = await makeRequest(`/${collection}/${id}`, "PUT", data);
+  let payload: Partial<T> = data;
+  if (remoteConfigured) {
+    // Some backends treat PUT as replace (not merge). Read existing and merge to avoid dropping fields.
+    const existingResult = await makeRequest(`/${collection}/${id}`, "GET");
+    const existing =
+      existingResult && existingResult.id
+        ? (existingResult as T)
+        : existingResult?.data && existingResult.data.id
+          ? (existingResult.data as T)
+          : null;
+    if (existing) {
+      payload = { ...existing, ...data };
+    }
+  }
+
+  const result = await makeRequest(`/${collection}/${id}`, "PUT", payload);
   if (!result) {
     if (remoteConfigured) {
       throw new Error(`Failed to update ${collection}/${id} in configured database`);

@@ -157,11 +157,11 @@ export function computeXEngagementScoreFromImpressions(impressions: number, foll
 
   // Follower-normalized reach ratio (impressions as a multiple of follower base).
   const reachRatio = safeImpressions / safeFollowers;
-  if (reachRatio < 0.1) return 0;   // <10% of follower base reached
-  if (reachRatio < 0.3) return 5;   // 10-29%
-  if (reachRatio < 0.6) return 10;  // 30-59%
-  if (reachRatio < 1.0) return 15;  // 60-99%
-  return 20;                        // >=100%
+  if (reachRatio < 0.2) return 0;    // <20% of follower base reached
+  if (reachRatio < 0.5) return 5;    // 20-49%
+  if (reachRatio < 1.5) return 10;   // 50-149%
+  if (reachRatio < 3.0) return 15;   // 150-299%
+  return 20;                         // >=300%
 }
 
 export function scoreBuckets(scores: number[]): Record<string, number> {
