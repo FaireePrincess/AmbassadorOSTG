@@ -1,43 +1,33 @@
 export const AVATAR_PRESETS = [
   {
-    id: 'bear',
-    label: 'Bear',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede',
+    id: 'grumpy-chick',
+    label: 'Grumpy Chick',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Grumpy_Chick_PFP01.PNG',
   },
   {
-    id: 'cat',
-    label: 'Cat',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Cat&backgroundColor=fde68a',
+    id: 'happy-boy',
+    label: 'Happy Boy',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Happy_Boy_PFP.PNG',
   },
   {
-    id: 'fox',
-    label: 'Fox',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Fox&backgroundColor=fca5a5',
+    id: 'happy-girl',
+    label: 'Happy Girl',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Happy_Girl_PFP.PNG',
   },
   {
-    id: 'panda',
-    label: 'Panda',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Panda&backgroundColor=93c5fd',
+    id: 'smiling-cat',
+    label: 'Smiling Cat',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Smiling_cat_PFP.PNG',
   },
   {
-    id: 'robot',
-    label: 'Robot',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Robot&backgroundColor=86efac',
+    id: 'smirking-boy',
+    label: 'Smirking Boy',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Smirking_Boy_PFP.PNG',
   },
   {
-    id: 'alien',
-    label: 'Alien',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Alien&backgroundColor=f9a8d4',
-  },
-  {
-    id: 'wizard',
-    label: 'Wizard',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Wizard&backgroundColor=d9f99d',
-  },
-  {
-    id: 'ninja',
-    label: 'Ninja',
-    uri: 'https://api.dicebear.com/9.x/fun-emoji/png?seed=Ninja&backgroundColor=fdba74',
+    id: 'unicorn',
+    label: 'Unicorn',
+    uri: 'https://pub-489363d241b04139bc82028f38d7f31b.r2.dev/Unicron_PFP.PNG',
   },
 ];
 
