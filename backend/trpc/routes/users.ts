@@ -2,12 +2,13 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { allUsers as initialUsers } from "@/mocks/data";
 import { db } from "@/backend/db";
+import { AVATAR_PRESETS, DEFAULT_AVATAR_URI } from "@/constants/avatarPresets";
 import type { User, UserRole, UserStatus } from "@/types";
 
 const COLLECTION = "users";
 const MAX_IMAGE_DATA_URI_LENGTH = 300_000;
-const DEFAULT_AVATAR = "https://api.dicebear.com/9.x/fun-emoji/png?seed=Bear&backgroundColor=c0aede";
-const ALLOWED_AVATAR_PREFIX = "https://api.dicebear.com/9.x/fun-emoji/png";
+const DEFAULT_AVATAR = DEFAULT_AVATAR_URI;
+const ALLOWED_AVATAR_URIS = new Set(AVATAR_PRESETS.map((preset) => preset.uri));
 const ENABLE_DEFAULT_SEEDING = (process.env.ENABLE_DEFAULT_SEEDING || "false") === "true";
 const LEGACY_EMAIL_GROUPS = [
   ["tatsianamikhailava@mail.ru", "tanushkaplushka96@gmail.com"],
@@ -24,7 +25,7 @@ function validateAvatar(avatar?: string) {
 
 function sanitizeAvatar(avatar?: string): string {
   if (!avatar) return DEFAULT_AVATAR;
-  if (!avatar.startsWith(ALLOWED_AVATAR_PREFIX)) return DEFAULT_AVATAR;
+  if (!ALLOWED_AVATAR_URIS.has(avatar)) return DEFAULT_AVATAR;
   return avatar;
 }
 
