@@ -438,7 +438,7 @@ export async function runXMetricsTrackingBatch(
 
         if (submission.rating && typeof xMetrics.impressions === "number") {
           const currentEngagement = Math.max(0, Math.min(20, Math.trunc(submission.rating.engagementScore || 0)));
-          const thresholdScore = computeXEngagementScoreFromImpressions(xMetrics.impressions);
+          const thresholdScore = computeXEngagementScoreFromImpressions(xMetrics.impressions, followerCount);
           const nextEngagement = Math.max(currentEngagement, thresholdScore);
 
           // Do not rewrite scores unless threshold has actually increased.

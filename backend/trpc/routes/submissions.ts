@@ -322,6 +322,7 @@ export const submissionsRouter = createTRPCRouter({
       const submissions = await getSubmissions();
       const submission = submissions.find((s) => s.id === input.id);
       if (!submission) throw new Error("Submission not found");
+      const submissionUser = await getUserInfo(submission.userId);
 
       const nowIso = new Date().toISOString();
       const wasApproved = submission.status === "approved";
@@ -343,10 +344,11 @@ export const submissionsRouter = createTRPCRouter({
         );
         const hasTwitterLink = links.some((item) => normalizePlatform(item.platform) === "twitter");
         const xImpressions = input.metrics?.impressions ?? submission.xImpressions;
+        const followerCount = submissionUser?.stats?.xFollowers || 0;
 
         if (hasTwitterLink && typeof xImpressions === "number") {
           const currentEngagement = Math.max(0, Math.min(20, Math.trunc(nextRating.engagementScore || 0)));
-          const thresholdScore = computeXEngagementScoreFromImpressions(xImpressions);
+          const thresholdScore = computeXEngagementScoreFromImpressions(xImpressions, followerCount);
           const nextEngagement = Math.max(currentEngagement, thresholdScore);
           const contentOnly = Math.max(0, (nextRating.totalScore || 0) - currentEngagement);
           nextRating = {
@@ -391,7 +393,7 @@ export const submissionsRouter = createTRPCRouter({
 
       await db.update(SUBMISSIONS_COLLECTION, input.id, updatedSubmission);
 
-      const user = await getUserInfo(submission.userId);
+      const user = submissionUser;
       if (user && !wasApproved && isNowApproved) {
         const posts = await getPosts();
         const hasExistingPost = posts.some((post) => {

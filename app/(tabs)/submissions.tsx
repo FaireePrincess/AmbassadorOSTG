@@ -26,6 +26,26 @@ const RATING_CRITERIA = [
   { key: 'enthusiasmTone', label: 'Enthusiasm & Tone', maxPoints: 10, description: 'Genuine support, positive energy, not forced' },
 ] as const;
 
+function computeSuggestedXEngagementScore(impressions: number, followerCount?: number): 0 | 5 | 10 | 15 | 20 {
+  const safeImpressions = Math.max(0, impressions || 0);
+  const safeFollowers = Math.max(0, followerCount || 0);
+
+  if (safeFollowers <= 0) {
+    if (safeImpressions < 500) return 0;
+    if (safeImpressions <= 1500) return 5;
+    if (safeImpressions <= 5000) return 10;
+    if (safeImpressions <= 10000) return 15;
+    return 20;
+  }
+
+  const reachRatio = safeImpressions / safeFollowers;
+  if (reachRatio < 0.1) return 0;
+  if (reachRatio < 0.3) return 5;
+  if (reachRatio < 0.6) return 10;
+  if (reachRatio < 1.0) return 15;
+  return 20;
+}
+
 function AdminReviewScreen() {
   const router = useRouter();
   const { users, refreshUsers } = useAuth();
@@ -78,6 +98,10 @@ function AdminReviewScreen() {
   const getUserName = useCallback((userId: string) => {
     const user = users.find(u => u.id === userId);
     return user?.name || 'Unknown User';
+  }, [users]);
+  const getUserFollowerCount = useCallback((userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user?.stats?.xFollowers || 0;
   }, [users]);
 
   const openReviewModal = useCallback((submission: Submission) => {
@@ -207,6 +231,12 @@ function AdminReviewScreen() {
       Alert.alert('Error', 'Could not open link');
     });
   }, []);
+
+  const suggestedEngagementScore = useMemo(() => {
+    if (!selectedSubmission || !fetchedMetrics) return null;
+    const followers = getUserFollowerCount(selectedSubmission.userId);
+    return computeSuggestedXEngagementScore(fetchedMetrics.impressions, followers);
+  }, [selectedSubmission, fetchedMetrics, getUserFollowerCount]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -512,6 +542,31 @@ function AdminReviewScreen() {
                   <View style={styles.engagementInfo}>
                     <Text style={styles.engagementGuide}>0-5: Very low • 6-10: Average • 11-15: Above avg • 16-20: Exceptional</Text>
                   </View>
+
+                  {selectedSubmission && fetchedMetrics && (
+                    <View style={styles.suggestionCard}>
+                      <View style={styles.suggestionHeader}>
+                        <Text style={styles.suggestionTitle}>Suggested engagement score</Text>
+                        <Text style={styles.suggestionValue}>{suggestedEngagementScore ?? 0}/20</Text>
+                      </View>
+                      <Text style={styles.suggestionMeta}>
+                        Impressions: {fetchedMetrics.impressions.toLocaleString()} • Followers: {getUserFollowerCount(selectedSubmission.userId).toLocaleString()}
+                      </Text>
+                      <PressableScale
+                        style={[
+                          styles.applySuggestionBtn,
+                          engagementScore === (suggestedEngagementScore ?? 0) && styles.applySuggestionBtnDisabled,
+                        ]}
+                        onPress={() => setEngagementScore(suggestedEngagementScore ?? 0)}
+                        disabled={engagementScore === (suggestedEngagementScore ?? 0)}
+                        hapticType="selection"
+                      >
+                        <Text style={styles.applySuggestionText}>
+                          {engagementScore === (suggestedEngagementScore ?? 0) ? 'Suggestion applied' : 'Apply suggested score'}
+                        </Text>
+                      </PressableScale>
+                    </View>
+                  )}
                   
                   <View style={styles.bonusRow}>
                     <View style={styles.bonusSlider}>
@@ -1307,6 +1362,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dark.textSecondary,
     textAlign: 'center',
+  },
+  suggestionCard: {
+    marginTop: -2,
+    marginBottom: 10,
+    backgroundColor: Colors.dark.surface,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    padding: 10,
+    gap: 6,
+  },
+  suggestionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  suggestionTitle: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  suggestionValue: {
+    color: Colors.dark.primary,
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  suggestionMeta: {
+    color: Colors.dark.textSecondary,
+    fontSize: 12,
+  },
+  applySuggestionBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    backgroundColor: Colors.dark.primary + '20',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '66',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  applySuggestionBtnDisabled: {
+    opacity: 0.65,
+  },
+  applySuggestionText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   metricsSection: {
     marginBottom: 24,

@@ -142,11 +142,26 @@ export function computeEngagementScore(submission: Submission): number {
   return Number(capped.toFixed(2));
 }
 
-export function computeXEngagementScoreFromImpressions(impressions: number): 5 | 10 | 15 | 20 {
-  if (impressions <= 1500) return 5;
-  if (impressions <= 5000) return 10;
-  if (impressions <= 10000) return 15;
-  return 20;
+export function computeXEngagementScoreFromImpressions(impressions: number, followerCount?: number): 0 | 5 | 10 | 15 | 20 {
+  const safeImpressions = Math.max(0, impressions || 0);
+  const safeFollowers = Math.max(0, followerCount || 0);
+
+  // Fallback to legacy absolute buckets when follower count is unavailable.
+  if (safeFollowers <= 0) {
+    if (safeImpressions < 500) return 0;
+    if (safeImpressions <= 1500) return 5;
+    if (safeImpressions <= 5000) return 10;
+    if (safeImpressions <= 10000) return 15;
+    return 20;
+  }
+
+  // Follower-normalized reach ratio (impressions as a multiple of follower base).
+  const reachRatio = safeImpressions / safeFollowers;
+  if (reachRatio < 0.1) return 0;   // <10% of follower base reached
+  if (reachRatio < 0.3) return 5;   // 10-29%
+  if (reachRatio < 0.6) return 10;  // 30-59%
+  if (reachRatio < 1.0) return 15;  // 60-99%
+  return 20;                        // >=100%
 }
 
 export function scoreBuckets(scores: number[]): Record<string, number> {
