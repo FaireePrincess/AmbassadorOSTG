@@ -63,6 +63,10 @@ export default function ProfileScreen() {
     () => sortedSubmissions.filter((submission) => submission.status === 'approved').length,
     [sortedSubmissions]
   );
+  const seasonPoints = currentUser?.season_points || 0;
+  const seasonRank = currentUser?.season_rank ?? null;
+  const seasonSubmissionCount = currentUser?.season_submission_count || 0;
+  const seasonApprovedCount = currentUser?.season_approved_count ?? approvedCount;
 
   const averageScore = useMemo(() => {
     const approvedWithScore = sortedSubmissions.filter(
@@ -302,21 +306,21 @@ export default function ProfileScreen() {
             <View style={styles.rankContainer}>
             <View style={styles.rankBadge}>
                 <Award size={18} color={Colors.dark.warning} />
-                <Text style={styles.rankText}>Rank {user.points > 0 ? `#${user.rank || '-'}` : '#-'}</Text>
+                <Text style={styles.rankText}>Rank {seasonPoints > 0 ? `#${seasonRank || '-'}` : '#-'}</Text>
               </View>
               <View style={styles.pointsBadge}>
-                <Text style={styles.pointsValue}>{user.points.toLocaleString()}</Text>
+                <Text style={styles.pointsValue}>{seasonPoints.toLocaleString()}</Text>
                 <Text style={styles.pointsLabel}>Points</Text>
               </View>
             </View>
 
             <View style={styles.profileOverviewGrid}>
               <View style={styles.profileOverviewCard}>
-                <Text style={styles.profileOverviewValue}>{user.stats.completedTasks}</Text>
+                <Text style={styles.profileOverviewValue}>{seasonSubmissionCount}</Text>
                 <Text style={styles.profileOverviewLabel}>Tasks</Text>
               </View>
               <View style={styles.profileOverviewCard}>
-                <Text style={styles.profileOverviewValue}>{approvedCount}</Text>
+                <Text style={styles.profileOverviewValue}>{seasonApprovedCount}</Text>
                 <Text style={styles.profileOverviewLabel}>Approved</Text>
               </View>
               <View style={styles.profileOverviewCard}>
@@ -564,18 +568,18 @@ export default function ProfileScreen() {
           <View style={styles.contentSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderTitle}>Performance Stats</Text>
-              <Text style={styles.sectionHeaderSubtitle}>All time</Text>
+              <Text style={styles.sectionHeaderSubtitle}>Current season</Text>
             </View>
             <View style={styles.statsGrid}>
-              <StatCard label="Total Posts" value={user.stats.totalPosts} color={Colors.dark.primary} />
-              <StatCard label="Tasks Done" value={user.stats.completedTasks} color={Colors.dark.success} />
+              <StatCard label="Season Points" value={seasonPoints} color={Colors.dark.primary} />
+              <StatCard label="Season Rank" value={seasonRank ? `#${seasonRank}` : '-'} color={Colors.dark.success} />
             </View>
             <View style={styles.statsGrid}>
-              <StatCard label="Impressions" value={user.stats.totalImpressions} color={Colors.dark.secondary} />
-              <StatCard label="Total Likes" value={user.stats.totalLikes} color={Colors.dark.accent} />
+              <StatCard label="Submissions" value={seasonSubmissionCount} color={Colors.dark.secondary} />
+              <StatCard label="Approved" value={seasonApprovedCount} color={Colors.dark.accent} />
             </View>
             <View style={styles.statsGrid}>
-              <StatCard label="Retweets" value={user.stats.totalRetweets} color={Colors.dark.warning} />
+              <StatCard label="Avg Score" value={averageScore} color={Colors.dark.warning} />
               <StatCard label="Avg Engagement" value={avgEngagement} color={Colors.dark.error} />
             </View>
             

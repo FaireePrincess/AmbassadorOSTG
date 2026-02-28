@@ -505,15 +505,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const normalizedAvatar = normalizeAvatarUri(updates.avatar || currentUser.avatar);
         const nextRegion = currentUser.role === 'admin' ? updates.region : undefined;
-        const updated = await trpcClient.users.update.mutate({
+        const updatePayload: {
+          id: string;
+          name?: string;
+          email?: string;
+          username?: string;
+          avatar?: string;
+          region?: string;
+          handles?: User['handles'];
+          fslEmail?: string;
+        } = {
           id: currentUser.id,
           name: updates.name,
           email: updates.email,
           username: updates.username,
-          region: nextRegion,
           avatar: normalizedAvatar,
           handles: updates.handles,
           fslEmail: updates.fslEmail,
+        };
+        if (currentUser.role === 'admin' && nextRegion !== undefined) {
+          updatePayload.region = nextRegion;
+        }
+        const updated = await trpcClient.users.update.mutate({
+          ...updatePayload,
         });
 
         const normalizedUpdated = normalizeUserAvatar(updated);

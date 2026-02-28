@@ -1,5 +1,6 @@
 import { db } from "@/backend/db";
 import { computeEngagementScore, scoreBuckets } from "@/backend/services/performance";
+import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason } from "@/backend/services/season";
 import type { AmbassadorPost, Submission, Task, User } from "@/types";
 
 const SUBMISSIONS_COLLECTION = "submissions";
@@ -18,15 +19,40 @@ function toWeekKey(dateValue?: string): string {
   return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+export function computeSeasonTaskCompletionRate(args: {
+  seasonTasks: Task[];
+  seasonSubmissions: Submission[];
+  completionStatus?: "approved" | "any_submitted";
+}): number {
+  const { seasonTasks, seasonSubmissions, completionStatus = "approved" } = args;
+  const activeSeasonTasks = seasonTasks.filter((task) => task.status === "active");
+  const totalTasks = activeSeasonTasks.length;
+  if (totalTasks <= 0) return 0;
+
+  const activeTaskIds = new Set(activeSeasonTasks.map((task) => task.id));
+  const qualifying = completionStatus === "approved"
+    ? seasonSubmissions.filter((submission) => submission.status === "approved")
+    : seasonSubmissions;
+  const completedTaskIds = new Set(
+    qualifying
+      .map((submission) => submission.taskId)
+      .filter((taskId) => activeTaskIds.has(taskId))
+  );
+  return completedTaskIds.size / totalTasks;
+}
+
 export async function getProgramAnalytics() {
-  const [submissions, users, tasks] = await Promise.all([
+  const [submissions, users, tasks, currentSeason] = await Promise.all([
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
     db.getCollection<User>(USERS_COLLECTION),
     db.getCollection<Task>(TASKS_COLLECTION),
+    ensureActiveSeason(),
   ]);
+  const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
+  const seasonTasks = tasks.filter((task) => isTaskInSeason(task, currentSeason));
 
-  const total = submissions.length;
-  const approved = submissions.filter((s) => s.status === "approved");
+  const total = seasonSubmissions.length;
+  const approved = seasonSubmissions.filter((s) => s.status === "approved");
   const approvalRate = total > 0 ? approved.length / total : 0;
 
   const scores = approved.map((s) => s.rating?.totalScore || 0);
@@ -49,14 +75,14 @@ export async function getProgramAnalytics() {
     else scoreDistribution20["15-20"] += 1;
   }
 
-  const submissionsPerPlatform = submissions.reduce<Record<string, number>>((acc, submission) => {
+  const submissionsPerPlatform = seasonSubmissions.reduce<Record<string, number>>((acc, submission) => {
     const key = submission.platform || "unknown";
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 
   const regionByUserId = new Map(users.map((user) => [user.id, user.region || "Unknown"]));
-  const submissionsPerRegion = submissions.reduce<Record<string, number>>((acc, submission) => {
+  const submissionsPerRegion = seasonSubmissions.reduce<Record<string, number>>((acc, submission) => {
     const region = regionByUserId.get(submission.userId) || "Unknown";
     acc[region] = (acc[region] || 0) + 1;
     return acc;
@@ -108,14 +134,14 @@ export async function getProgramAnalytics() {
   const weekKeyNow = toWeekKey();
   const activeUsers = users.filter((user) => user.status === "active");
   const submittedThisWeek = new Set(
-    submissions
+    seasonSubmissions
       .filter((submission) => toWeekKey(submission.submittedAt) === weekKeyNow)
       .map((submission) => submission.userId)
   );
   const activeAmbassadorsThisWeek = activeUsers.filter((user) => submittedThisWeek.has(user.id)).length;
   const inactiveAmbassadors = activeUsers.length - activeAmbassadorsThisWeek;
 
-  const reviewedDurationsHours = submissions
+  const reviewedDurationsHours = seasonSubmissions
     .filter((submission) => Boolean(submission.reviewedAt))
     .map((submission) => {
       const submittedTs = Date.parse(submission.submittedAt || "");
@@ -134,7 +160,7 @@ export async function getProgramAnalytics() {
     .map((user) => {
       const joinedTs = Date.parse(user.joinedAt || "");
       if (Number.isNaN(joinedTs)) return null;
-      const firstSubmissionTs = submissions
+      const firstSubmissionTs = seasonSubmissions
         .filter((submission) => submission.userId === user.id)
         .map((submission) => Date.parse(submission.submittedAt || ""))
         .filter((ts) => !Number.isNaN(ts))
@@ -147,14 +173,11 @@ export async function getProgramAnalytics() {
     ? timeToFirstSubmissionHours.reduce((sum, value) => sum + value, 0) / timeToFirstSubmissionHours.length
     : 0;
 
-  const activeTaskCount = tasks.filter((task) => task.status === "active").length;
-  const activeAmbassadorCount = Math.max(1, activeUsers.filter((user) => user.role === "ambassador").length);
-  const completedTasksByAmbassadors = activeUsers
-    .filter((user) => user.role === "ambassador")
-    .reduce((sum, user) => sum + (user.stats?.completedTasks || 0), 0);
-  const taskCompletionRate = activeTaskCount > 0
-    ? completedTasksByAmbassadors / (activeTaskCount * activeAmbassadorCount)
-    : 0;
+  const taskCompletionRate = computeSeasonTaskCompletionRate({
+    seasonTasks,
+    seasonSubmissions,
+    completionStatus: "approved",
+  });
 
   const sortedScores = [...normalizedScores].sort((a, b) => a - b);
   const decileSize = Math.max(1, Math.floor(sortedScores.length * 0.1));
@@ -170,7 +193,7 @@ export async function getProgramAnalytics() {
 
   const trends = new Map<string, { total: number; approved: number; scoreSum: number; engagementSum: number }>();
 
-  for (const submission of submissions) {
+  for (const submission of seasonSubmissions) {
     const week = toWeekKey(submission.submittedAt);
     const entry = trends.get(week) || { total: 0, approved: 0, scoreSum: 0, engagementSum: 0 };
     entry.total += 1;
@@ -233,10 +256,12 @@ export async function getProgramAnalytics() {
 }
 
 export async function getRegionalAnalytics() {
-  const [submissions, users] = await Promise.all([
+  const [submissions, users, currentSeason] = await Promise.all([
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
     db.getCollection<User>(USERS_COLLECTION),
+    ensureActiveSeason(),
   ]);
+  const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
 
   const regionByUser = new Map(users.map((u) => [u.id, u.region || "Unknown"]));
   const grouped = new Map<string, {
@@ -249,7 +274,7 @@ export async function getRegionalAnalytics() {
     shares: number;
   }>();
 
-  for (const submission of submissions) {
+  for (const submission of seasonSubmissions) {
     const region = regionByUser.get(submission.userId) || "Unknown";
     const entry = grouped.get(region) || {
       submissions: 0,
@@ -294,26 +319,54 @@ export async function getRegionalAnalytics() {
 }
 
 export async function getRegionalLeaderboard(region: string, limit = 20) {
-  const users = await db.getCollection<User>(USERS_COLLECTION);
+  const [users, submissions, currentSeason] = await Promise.all([
+    db.getCollection<User>(USERS_COLLECTION),
+    db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
+    ensureActiveSeason(),
+  ]);
+  const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
+  const seasonImpressionsByUser = seasonSubmissions.reduce<Map<string, number>>((map, submission) => {
+    if (submission.status !== "approved") return map;
+    map.set(submission.userId, (map.get(submission.userId) || 0) + (submission.metrics?.impressions || 0));
+    return map;
+  }, new Map());
   return users
     .filter((u) => u.status === "active" && u.region === region)
-    .sort((a, b) => b.points - a.points)
+    .sort((a, b) => (b.season_points || 0) - (a.season_points || 0))
     .slice(0, limit)
     .map((u, idx) => ({
       rank: idx + 1,
       userId: u.id,
       name: u.name,
       region: u.region,
-      points: u.points,
-      posts: u.stats.totalPosts,
-      impressions: u.stats.totalImpressions,
+      points: u.season_points || 0,
+      posts: u.season_submission_count || 0,
+      impressions: seasonImpressionsByUser.get(u.id) || 0,
     }));
 }
 
 export async function getRegionalActivityFeed(region: string, limit = 20) {
-  const posts = await db.getCollection<AmbassadorPost>(POSTS_COLLECTION);
+  const [posts, submissions, currentSeason] = await Promise.all([
+    db.getCollection<AmbassadorPost>(POSTS_COLLECTION),
+    db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
+    ensureActiveSeason(),
+  ]);
+  const seasonSubmissionIds = new Set(
+    submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason)).map((submission) => submission.id)
+  );
   return posts
-    .filter((p) => p.userRegion === region)
+    .filter((p) => {
+      if (p.userRegion !== region) return false;
+      const sourceSubmissionId = (p as AmbassadorPost & { sourceSubmissionId?: string }).sourceSubmissionId;
+      if (sourceSubmissionId) return seasonSubmissionIds.has(sourceSubmissionId);
+      const postedTs = Date.parse(p.postedAt || "");
+      const seasonStartTs = Date.parse(currentSeason.startedAt || "");
+      const seasonEndTs = currentSeason.endedAt ? Date.parse(currentSeason.endedAt) : null;
+      if (Number.isNaN(postedTs) || Number.isNaN(seasonStartTs)) return false;
+      if (postedTs < seasonStartTs) return false;
+      if (seasonEndTs !== null && !Number.isNaN(seasonEndTs) && postedTs >= seasonEndTs) return false;
+      return true;
+    })
     .sort((a, b) => Date.parse(b.postedAt || "") - Date.parse(a.postedAt || ""))
     .slice(0, limit);
 }

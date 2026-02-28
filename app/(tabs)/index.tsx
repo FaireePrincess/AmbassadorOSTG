@@ -156,10 +156,10 @@ export default function HomeScreen() {
         username: u.username,
         handles: u.handles,
         region: u.region,
-        points: u.points,
+        seasonPoints: u.season_points || 0,
         stats: u.stats,
       }))
-      .sort((a, b) => b.points - a.points)
+      .sort((a, b) => b.seasonPoints - a.seasonPoints)
       .map((u, idx) => ({ ...u, rank: idx + 1 }));
   }, [users, currentUser]);
 
@@ -170,18 +170,18 @@ export default function HomeScreen() {
 
   const userRank = useMemo(() => {
     if (!currentUser) return 0;
-    if (currentUser.points <= 0) return 0;
+    if ((currentUser.season_points || 0) <= 0) return 0;
     const idx = fullLeaderboard.findIndex(u => u.id === currentUser.id);
     return idx >= 0 ? idx + 1 : 0;
   }, [currentUser, fullLeaderboard]);
 
   const userStats = useMemo(() => {
-    if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, points: 0 };
+    if (!currentUser) return { totalPosts: 0, totalImpressions: 0, totalLikes: 0, seasonPoints: 0 };
     return {
       totalPosts: currentUser.stats.totalPosts,
       totalImpressions: currentUser.stats.totalImpressions,
       totalLikes: currentUser.stats.totalLikes,
-      points: currentUser.points,
+      seasonPoints: currentUser.season_points || 0,
     };
   }, [currentUser]);
 
@@ -257,7 +257,7 @@ export default function HomeScreen() {
               </View>
             </View>
             <View style={styles.pointsContainer}>
-              <Text style={styles.pointsValue} testID="user-points">{userStats.points.toLocaleString()}</Text>
+              <Text style={styles.pointsValue} testID="user-points">{userStats.seasonPoints.toLocaleString()}</Text>
               <Text style={styles.pointsLabel}>Points</Text>
             </View>
           </View>

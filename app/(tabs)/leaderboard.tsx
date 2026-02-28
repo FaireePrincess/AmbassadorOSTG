@@ -28,6 +28,11 @@ function getRankMedal(rank: number): string | null {
   return null;
 }
 
+function asRank(value: number | null | undefined): number {
+  if (typeof value === 'number' && value > 0) return value;
+  return 0;
+}
+
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { users, currentUser } = useAuth();
@@ -46,10 +51,12 @@ export default function LeaderboardScreen() {
         handles: u.handles,
         stats: u.stats,
         region: u.region,
-        points: u.points,
+        seasonPoints: u.season_points || 0,
+        seasonRank: u.season_rank ?? null,
+        seasonSubmissionCount: u.season_submission_count || 0,
       }))
-      .sort((a, b) => b.points - a.points)
-      .map((u, idx) => ({ ...u, rank: idx + 1 }));
+      .sort((a, b) => b.seasonPoints - a.seasonPoints)
+      .map((u, idx) => ({ ...u, rank: u.seasonRank ?? (u.seasonPoints > 0 ? idx + 1 : null) }));
   }, [users]);
 
   const selectedUser = useMemo(
@@ -118,7 +125,7 @@ export default function LeaderboardScreen() {
   const regionalLeaderPreview = useMemo(() => {
     const totals = overall.reduce<Map<string, number>>((map, entry) => {
       const region = entry.region || 'Unknown';
-      map.set(region, (map.get(region) || 0) + entry.points);
+      map.set(region, (map.get(region) || 0) + entry.seasonPoints);
       return map;
     }, new Map());
     const topRegion = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -168,7 +175,7 @@ export default function LeaderboardScreen() {
           <View style={styles.currentUserCard}>
             <Text style={styles.currentUserTitle}>Your Rank: #{currentUserEntry.rank}</Text>
             <Text style={styles.currentUserMeta}>
-              {formatWholePoints(currentUserEntry.points)} pts • {currentUserEntry.stats.completedTasks} tasks completed
+              {formatWholePoints(currentUserEntry.seasonPoints)} pts • {currentUserEntry.seasonSubmissionCount} tasks completed
             </Text>
           </View>
         )}
@@ -176,22 +183,23 @@ export default function LeaderboardScreen() {
         <View style={styles.listCard}>
           {rows.map((entry) => {
             const isCurrent = entry.id === currentUser?.id;
-            const previous = entry.rank > 1 ? overall[entry.rank - 2] : null;
-            const delta = previous ? Math.max(0, Math.ceil(previous.points - entry.points)) : 0;
-            const medal = getRankMedal(entry.rank);
+            const rankNumber = asRank(entry.rank);
+            const previous = rankNumber > 1 ? overall[rankNumber - 2] : null;
+            const delta = previous ? Math.max(0, Math.ceil(previous.seasonPoints - entry.seasonPoints)) : 0;
+            const medal = getRankMedal(rankNumber);
             return (
               <PressableScale key={entry.id} style={[styles.row, isCurrent && styles.rowCurrent]} onPress={() => setSelectedUserId(entry.id)}>
                 <View style={[styles.rankPill, medal && styles.rankPillMedal]}>
-                  <Text style={styles.rankText}>{medal || entry.rank}</Text>
+                  <Text style={styles.rankText}>{medal || (rankNumber > 0 ? rankNumber : '-')}</Text>
                 </View>
                 <View style={styles.userCol}>
                   <Text style={styles.name}>{entry.name}</Text>
-                  <Text style={styles.region}>{entry.region} • {entry.stats.completedTasks} tasks</Text>
+                  <Text style={styles.region}>{entry.region} • {entry.seasonSubmissionCount} tasks</Text>
                 </View>
                 <View style={styles.pointsCol}>
-                  <Text style={styles.points}>{formatWholePoints(entry.points)} pts</Text>
+                  <Text style={styles.points}>{formatWholePoints(entry.seasonPoints)} pts</Text>
                   <Text style={styles.pointsDelta}>
-                    {entry.rank === 1 ? 'Leading' : `${delta} pts behind #${entry.rank - 1}`}
+                    {rankNumber === 1 ? 'Leading' : `${delta} pts behind #${Math.max(1, rankNumber - 1)}`}
                   </Text>
                 </View>
               </PressableScale>
@@ -224,11 +232,11 @@ export default function LeaderboardScreen() {
 
               <View style={styles.recapStatsRow}>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedUser.rank}</Text>
+                  <Text style={styles.recapStatValue}>{selectedUser.rank || '-'}</Text>
                   <Text style={styles.recapStatLabel}>Ranking</Text>
                 </View>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedUser.points)}</Text>
+                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedUser.seasonPoints)}</Text>
                   <Text style={styles.recapStatLabel}>Points</Text>
                 </View>
               </View>

@@ -19,6 +19,10 @@ export interface User {
   region: string;
   points: number;
   rank: number;
+  season_points?: number;
+  season_rank?: number | null;
+  season_submission_count?: number;
+  season_approved_count?: number;
   status: UserStatus;
   inviteCode?: string;
   handles: {
@@ -59,6 +63,7 @@ export interface Campaign {
 
 export interface Task {
   id: string;
+  seasonId?: string;
   campaignId: string;
   campaignTitle: string;
   title: string;
@@ -131,6 +136,7 @@ export interface SubmissionRating {
 
 export interface Submission {
   id: string;
+  seasonId?: string;
   userId: string; // Ties submission to the user who created it
   taskId: string;
   taskTitle: string;
@@ -192,6 +198,14 @@ export interface Season {
   closedByUserId?: string;
   closedByName?: string;
   resetUserCount?: number;
+}
+
+export interface SeasonResetLog {
+  id: string;
+  createdByAdmin: string;
+  previousSeasonId: string;
+  newSeasonId: string;
+  createdAt: string;
 }
 
 export interface Poll {

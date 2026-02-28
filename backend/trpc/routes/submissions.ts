@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { submissions as initialSubmissions, ambassadorPosts as initialPosts } from "@/mocks/data";
 import { db } from "@/backend/db";
+import { ensureActiveSeason, isSubmissionInSeason } from "@/backend/services/season";
 import type { Submission, SubmissionStatus, Platform, AmbassadorPost, User, Task } from "@/types";
 import {
   computeEngagementScore,
@@ -177,7 +178,9 @@ const linkSchema = z.object({
 
 export const submissionsRouter = createTRPCRouter({
   list: publicProcedure.query(async () => {
-    return getSubmissions();
+    const currentSeason = await ensureActiveSeason();
+    const submissions = await getSubmissions();
+    return submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
   }),
 
   getById: publicProcedure
@@ -192,15 +195,17 @@ export const submissionsRouter = createTRPCRouter({
   getByUserId: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
+      const currentSeason = await ensureActiveSeason();
       const submissions = await getSubmissions();
-      return submissions.filter((s) => s.userId === input.userId);
+      return submissions.filter((s) => s.userId === input.userId && isSubmissionInSeason(s, currentSeason));
     }),
 
   getByTaskId: publicProcedure
     .input(z.object({ taskId: z.string() }))
     .query(async ({ input }) => {
+      const currentSeason = await ensureActiveSeason();
       const submissions = await getSubmissions();
-      return submissions.filter((s) => s.taskId === input.taskId);
+      return submissions.filter((s) => s.taskId === input.taskId && isSubmissionInSeason(s, currentSeason));
     }),
 
   create: publicProcedure
@@ -217,6 +222,7 @@ export const submissionsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      const currentSeason = await ensureActiveSeason();
       validateScreenshot(input.screenshotUrl);
       const taskInfo = await getTaskInfo(input.taskId);
       const linkData = normalizeSubmissionLinks(input);
@@ -224,6 +230,7 @@ export const submissionsRouter = createTRPCRouter({
 
       const newSubmission: Submission = {
         id: `sub-${Date.now()}`,
+        seasonId: currentSeason.id,
         userId: input.userId,
         taskId: input.taskId,
         taskTitle: taskInfo.title,
@@ -295,6 +302,7 @@ export const submissionsRouter = createTRPCRouter({
         rating: undefined,
         reviewedAt: undefined,
         submittedAt: new Date().toISOString(),
+        seasonId: existing.seasonId,
       };
 
       await db.update<Submission>(SUBMISSIONS_COLLECTION, input.id, updatedSubmission);
@@ -429,8 +437,20 @@ export const submissionsRouter = createTRPCRouter({
     .input(z.object({ limit: z.number().optional() }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit || 20;
-      const posts = await getPosts();
+      const currentSeason = await ensureActiveSeason();
+      const [posts, submissions] = await Promise.all([getPosts(), getSubmissions()]);
+      const seasonSubmissionIds = new Set(
+        submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason)).map((submission) => submission.id)
+      );
       return [...posts]
+        .filter((post) => {
+          const sourceSubmissionId = (post as AmbassadorPost & { sourceSubmissionId?: string }).sourceSubmissionId;
+          if (sourceSubmissionId) return seasonSubmissionIds.has(sourceSubmissionId);
+          const postedTs = Date.parse(post.postedAt || "");
+          const seasonStartTs = Date.parse(currentSeason.startedAt || "");
+          if (Number.isNaN(postedTs) || Number.isNaN(seasonStartTs)) return false;
+          return postedTs >= seasonStartTs;
+        })
         .sort((a, b) => {
           const aTs = Date.parse(a.postedAt || "");
           const bTs = Date.parse(b.postedAt || "");

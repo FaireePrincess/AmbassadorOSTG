@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { tasks as initialTasks, campaigns } from "@/mocks/data";
 import { db } from "@/backend/db";
+import { ensureActiveSeason, isTaskInSeason } from "@/backend/services/season";
 import type { Task, TaskStatus, Platform } from "@/types";
 import { sendTaskActiveNotification } from "@/backend/services/telegram-notifications";
 
@@ -42,17 +43,20 @@ async function getTasks(): Promise<Task[]> {
 
 export const tasksRouter = createTRPCRouter({
   list: publicProcedure.query(async () => {
+    const currentSeason = await ensureActiveSeason();
     const tasks = await getTasks();
-    console.log("[Tasks] Fetching all tasks, count:", tasks.length);
-    return tasks;
+    const scopedTasks = tasks.filter((task) => isTaskInSeason(task, currentSeason));
+    console.log("[Tasks] Fetching season tasks, count:", scopedTasks.length, "season:", currentSeason.id);
+    return scopedTasks;
   }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       console.log("[Tasks] Fetching task by id:", input.id);
+      const currentSeason = await ensureActiveSeason();
       const tasks = await getTasks();
-      const task = tasks.find((t) => t.id === input.id);
+      const task = tasks.find((t) => t.id === input.id && isTaskInSeason(t, currentSeason));
       if (!task) {
         throw new Error("Task not found");
       }
@@ -79,10 +83,12 @@ export const tasksRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      const currentSeason = await ensureActiveSeason();
       validateTaskThumbnail(input.thumbnail);
       const campaign = campaigns.find((c) => c.id === input.campaignId);
       const newTask: Task = {
         id: `task-${Date.now()}`,
+        seasonId: currentSeason.id,
         campaignId: input.campaignId,
         campaignTitle: input.campaignTitle || campaign?.title || "General Campaign",
         title: input.title,

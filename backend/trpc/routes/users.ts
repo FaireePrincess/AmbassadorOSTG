@@ -116,6 +116,10 @@ function sanitizeUser(user: User): User {
     handles: sanitizeHandles(user.handles),
     points: safeNumber(user.points),
     rank: safeNumber(user.rank),
+    season_points: safeNumber(user.season_points),
+    season_rank: user.season_rank === null || user.season_rank === undefined ? null : safeNumber(user.season_rank),
+    season_submission_count: safeNumber(user.season_submission_count),
+    season_approved_count: safeNumber(user.season_approved_count),
     stats: {
       totalPosts: safeNumber(stats.totalPosts),
       totalImpressions: safeNumber(stats.totalImpressions),
@@ -338,6 +342,10 @@ export const usersRouter = createTRPCRouter({
         fslEmail: input.fslEmail,
         points: 0,
         rank: 0,
+        season_points: 0,
+        season_rank: null,
+        season_submission_count: 0,
+        season_approved_count: 0,
         status: "pending" as UserStatus,
         inviteCode,
         handles: input.handles || {},
@@ -415,10 +423,13 @@ export const usersRouter = createTRPCRouter({
         : sanitizeHandles(baseUser.handles);
       const updatedUser = sanitizeUser({
         ...baseUser,
-        ...input,
+        name: input.name ?? baseUser.name,
         email: nextEmail,
         username: nextUsername,
         avatar: sanitizeAvatar(input.avatar ?? baseUser.avatar),
+        role: input.role ?? baseUser.role,
+        region: input.region !== undefined ? input.region : baseUser.region,
+        status: input.status ?? baseUser.status,
         handles: mergedHandles,
         fslEmail:
           input.fslEmail !== undefined
@@ -489,14 +500,14 @@ export const usersRouter = createTRPCRouter({
       const users = await getUsers();
       const sortedUsers = [...users]
         .filter((u) => u.role !== "admin" && u.status === "active" && (!input?.region || u.region === input.region))
-        .sort((a, b) => b.points - a.points)
+        .sort((a, b) => (b.season_points || 0) - (a.season_points || 0))
         .slice(0, limit)
         .map((u, i) => ({
           rank: i + 1,
           name: u.name,
           region: u.region,
-          points: u.points,
-          posts: u.stats.totalPosts,
+          points: u.season_points || 0,
+          posts: u.season_submission_count || 0,
         }));
       return sortedUsers;
     }),

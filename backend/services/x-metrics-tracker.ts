@@ -1,4 +1,5 @@
 import { db } from "@/backend/db";
+import { ensureActiveSeason, isSubmissionInSeason } from "@/backend/services/season";
 import type { Submission, User } from "@/types";
 import {
   computeXEngagementScoreFromImpressions,
@@ -346,9 +347,10 @@ export async function runXMetricsTrackingBatch(
       return { processed: 0, remaining: 0, errors: 0, region: targetRegion };
     }
 
-    const [submissions, users] = await Promise.all([
+    const [submissions, users, currentSeason] = await Promise.all([
       db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
       db.getCollection<User>(USERS_COLLECTION),
+      ensureActiveSeason(),
     ]);
 
     const regions = getRegions(users);
@@ -383,7 +385,10 @@ export async function runXMetricsTrackingBatch(
     const userById = new Map(users.map((u) => [u.id, u]));
     const followerCache = new Map<string, number>();
     const regionEligible = submissions.filter(
-      (submission) => canTrackSubmission(submission) && (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
+      (submission) =>
+        isSubmissionInSeason(submission, currentSeason) &&
+        canTrackSubmission(submission) &&
+        (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
     );
 
     const batchLimit = Math.max(1, Math.min(MAX_BATCH, options?.maxBatch ?? MAX_BATCH));

@@ -323,7 +323,7 @@ export default function AdminScreen() {
     const seasonName = currentSeason?.name || 'current season';
     Alert.alert(
       'Close Season',
-      `Close ${seasonName} and start a new one?\n\nThis will:\n• Reset all users' points and performance stats to zero\n• Clear approved submissions\n• Keep pending and needs_edits submissions\n• Keep tasks, assets, events, and users`,
+      `Close ${seasonName} and start a new one?\n\nThis will:\n• Reset season points/ranks/counters to zero\n• Keep all historical submissions and impressions\n• Archive current season tasks (no task deletion)\n• Keep users, assets, and events`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -339,7 +339,7 @@ export default function AdminScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 'New Season Started',
-                `${result.newSeason.name} is now active.\nReset ${result.resetUserCount} user account(s).\nCleared ${result.resetApprovedSubmissions || 0} approved submission(s).`
+                `${result.newSeason.name} is now active.\nReset season fields for ${result.resetUserCount} user account(s).\nPrevious season keeps ${result.resetApprovedSubmissions || 0} approved submissions in history.`
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : 'Failed to close season';

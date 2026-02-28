@@ -1,45 +1,51 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { db } from "@/backend/db";
-import type { Season, Submission, Task, User } from "@/types";
+import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason, listSeasons, setCurrentSeasonConfig } from "@/backend/services/season";
+import type { Season, SeasonResetLog, Submission, Task, User } from "@/types";
 
 const COLLECTION = "seasons";
+const RESET_LOGS_COLLECTION = "season_resets";
 
-function sortByNumberDesc(seasons: Season[]): Season[] {
-  return [...seasons].sort((a, b) => b.number - a.number);
-}
+async function validateResetReadiness(currentSeason: Season): Promise<{ ok: boolean; reasons: string[] }> {
+  const [tasks, submissions] = await Promise.all([
+    db.getCollection<Task>("tasks"),
+    db.getCollection<Submission>("submissions"),
+  ]);
 
-async function getSeasons(): Promise<Season[]> {
-  const seasons = await db.getCollection<Season>(COLLECTION);
-  return sortByNumberDesc(seasons);
-}
+  const reasons: string[] = [];
 
-async function ensureActiveSeason(): Promise<Season> {
-  const seasons = await getSeasons();
-  const active = seasons.find((season) => season.status === "active");
-  if (active) {
-    return active;
+  const activeTasks = tasks.filter((task) => task.status === "active" || task.status === "upcoming");
+  const tasksSeasonScoped = activeTasks.every((task) => isTaskInSeason(task, currentSeason));
+  if (!tasksSeasonScoped) {
+    reasons.push("tasks are not season-scoped");
   }
 
-  const maxNumber = seasons.length > 0 ? Math.max(...seasons.map((season) => season.number)) : 0;
-  const newSeasonNumber = maxNumber + 1;
-  const nowIso = new Date().toISOString();
-  const season: Season = {
-    id: `season-${newSeasonNumber}-${Date.now()}`,
-    number: newSeasonNumber,
-    name: `Season ${newSeasonNumber}`,
-    status: "active",
-    startedAt: nowIso,
-  };
+  const submissionsSeasonScoped = submissions.every((submission) => {
+    if (submission.seasonId) return true;
+    const ts = Date.parse(submission.submittedAt || "");
+    return !Number.isNaN(ts);
+  });
+  if (!submissionsSeasonScoped) {
+    reasons.push("submissions are not season-scoped");
+  }
 
-  await db.create<Season>(COLLECTION, season);
-  return season;
+  // Approved counters and profile/leaderboard are season-scoped when current season submissions
+  // can be deterministically derived (seasonId or timestamp fallback).
+  const hasDeterministicSeasonFilter = submissions.every(
+    (submission) => Boolean(submission.seasonId) || !Number.isNaN(Date.parse(submission.submittedAt || ""))
+  );
+  if (!hasDeterministicSeasonFilter) {
+    reasons.push("approved count/profile/leaderboard cannot be season-filtered safely");
+  }
+
+  return { ok: reasons.length === 0, reasons };
 }
 
 export const seasonsRouter = createTRPCRouter({
   list: publicProcedure.query(async () => {
     await ensureActiveSeason();
-    return getSeasons();
+    return listSeasons();
   }),
 
   getCurrent: publicProcedure.query(async () => {
@@ -60,6 +66,11 @@ export const seasonsRouter = createTRPCRouter({
       }
 
       const currentSeason = await ensureActiveSeason();
+      const readiness = await validateResetReadiness(currentSeason);
+      if (!readiness.ok) {
+        throw new Error(`Season reset blocked: ${readiness.reasons.join("; ")}`);
+      }
+
       const nowIso = new Date().toISOString();
       const closedSeason: Season = {
         ...currentSeason,
@@ -79,56 +90,36 @@ export const seasonsRouter = createTRPCRouter({
         startedAt: nowIso,
       };
       await db.create<Season>(COLLECTION, nextSeason);
+      await setCurrentSeasonConfig(nextSeason.id);
 
       const usersToReset = users;
       const resetOps = usersToReset.map((user) =>
         db.update<User>("users", user.id, {
           ...user,
-          points: 0,
-          rank: 0,
-          stats: {
-            ...user.stats,
-            totalPosts: 0,
-            totalImpressions: 0,
-            totalLikes: 0,
-            totalRetweets: 0,
-            xFollowers: 0,
-            completedTasks: 0,
-          },
+          season_points: 0,
+          season_rank: null,
+          season_submission_count: 0,
+          season_approved_count: 0,
         })
       );
       await Promise.all(resetOps);
 
-      const submissions = await db.getCollection<Submission>("submissions");
-      const approvedSubmissions = submissions.filter((submission) => submission.status === "approved");
-      const approvedSubmissionIds = new Set(approvedSubmissions.map((submission) => submission.id));
-      const removeApprovedOps = approvedSubmissions.map((submission) =>
-        db.remove("submissions", submission.id)
-      );
-      await Promise.all(removeApprovedOps);
-
-      const posts = await db.getCollection<{ id: string }>("ambassador_posts");
-      const removePostOps = posts.map((post) => db.remove("ambassador_posts", post.id));
-      await Promise.all(removePostOps);
-
-      const remainingSubmissions = submissions.filter(
-        (submission) => !approvedSubmissionIds.has(submission.id)
-      );
-      const taskSubmissionCounts = new Map<string, number>();
-      for (const submission of remainingSubmissions) {
-        taskSubmissionCounts.set(
-          submission.taskId,
-          (taskSubmissionCounts.get(submission.taskId) || 0) + 1
-        );
-      }
-
       const tasks = await db.getCollection<Task>("tasks");
-      const updateTaskOps = tasks.map((task) =>
-        db.update<Task>("tasks", task.id, {
-          submissions: taskSubmissionCounts.get(task.id) || 0,
-        })
+      const archiveTaskOps = tasks
+        .filter((task) => isTaskInSeason(task, currentSeason))
+        .map((task) =>
+          db.update<Task>("tasks", task.id, {
+            ...task,
+            seasonId: task.seasonId || currentSeason.id,
+            status: "completed",
+          })
+        );
+      await Promise.all(archiveTaskOps);
+
+      const submissions = await db.getCollection<Submission>("submissions");
+      const currentSeasonApproved = submissions.filter(
+        (submission) => submission.status === "approved" && isSubmissionInSeason(submission, currentSeason)
       );
-      await Promise.all(updateTaskOps);
 
       const closedSeasonWithSummary: Season = {
         ...closedSeason,
@@ -136,11 +127,20 @@ export const seasonsRouter = createTRPCRouter({
       };
       await db.update<Season>(COLLECTION, currentSeason.id, closedSeasonWithSummary);
 
+      const resetLog: SeasonResetLog = {
+        id: `season-reset-${Date.now()}`,
+        createdByAdmin: admin.id,
+        previousSeasonId: currentSeason.id,
+        newSeasonId: nextSeason.id,
+        createdAt: nowIso,
+      };
+      await db.create<SeasonResetLog>(RESET_LOGS_COLLECTION, resetLog);
+
       return {
         closedSeason: closedSeasonWithSummary,
         newSeason: nextSeason,
         resetUserCount: usersToReset.length,
-        resetApprovedSubmissions: approvedSubmissions.length,
+        resetApprovedSubmissions: currentSeasonApproved.length,
       };
     }),
 });

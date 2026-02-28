@@ -1,4 +1,5 @@
 import { db } from "@/backend/db";
+import { ensureActiveSeason, isSubmissionInSeason } from "@/backend/services/season";
 import type { Platform, Submission, User } from "@/types";
 
 const USERS_COLLECTION = "users";
@@ -185,46 +186,41 @@ export function scoreBuckets(scores: number[]): Record<string, number> {
 }
 
 export async function recomputeAllUserPerformance(): Promise<void> {
-  const [users, submissions] = await Promise.all([
+  const [users, submissions, currentSeason] = await Promise.all([
     db.getCollection<User>(USERS_COLLECTION),
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
+    ensureActiveSeason(),
   ]);
 
-  const approved = submissions.filter((s) => s.status === "approved");
-  const byUser = new Map<string, Submission[]>();
+  const seasonSubmissions = submissions.filter((s) => isSubmissionInSeason(s, currentSeason));
+  const approved = seasonSubmissions.filter((s) => s.status === "approved");
+  const approvedByUser = new Map<string, Submission[]>();
+  const seasonCountByUser = new Map<string, number>();
 
-  for (const submission of approved) {
-    const list = byUser.get(submission.userId) || [];
+  for (const submission of seasonSubmissions) {
+    seasonCountByUser.set(submission.userId, (seasonCountByUser.get(submission.userId) || 0) + 1);
+    if (submission.status !== "approved") continue;
+    const list = approvedByUser.get(submission.userId) || [];
     list.push(submission);
-    byUser.set(submission.userId, list);
+    approvedByUser.set(submission.userId, list);
   }
 
   const refreshedUsers: User[] = users.map((user) => {
-    const list = byUser.get(user.id) || [];
-    const totalImpressions = list.reduce((acc, item) => acc + (item.metrics?.impressions || 0), 0);
-    const totalLikes = list.reduce((acc, item) => acc + (item.metrics?.likes || 0), 0);
-    const totalRetweets = list.reduce((acc, item) => acc + (item.metrics?.shares || 0), 0);
-    const uniqueTaskCount = new Set(list.map((item) => item.taskId)).size;
+    const list = approvedByUser.get(user.id) || [];
     const totalPoints = list.reduce((acc, item) => acc + (item.rating?.totalScore || 0), 0);
 
     return {
       ...user,
-      points: Number(totalPoints.toFixed(2)),
-      stats: {
-        ...user.stats,
-        totalPosts: list.length,
-        totalImpressions,
-        totalLikes,
-        totalRetweets,
-        completedTasks: uniqueTaskCount,
-      },
-      rank: 0,
+      season_points: Number(totalPoints.toFixed(2)),
+      season_rank: null,
+      season_submission_count: seasonCountByUser.get(user.id) || 0,
+      season_approved_count: list.length,
     };
   });
 
   const ranked = [...refreshedUsers]
     .filter((u) => u.status === "active")
-    .sort((a, b) => b.points - a.points)
+    .sort((a, b) => (b.season_points || 0) - (a.season_points || 0))
     .map((user, index) => ({ id: user.id, rank: index + 1 }));
 
   const rankMap = new Map(ranked.map((entry) => [entry.id, entry.rank]));
@@ -233,7 +229,7 @@ export async function recomputeAllUserPerformance(): Promise<void> {
     refreshedUsers.map((user) =>
       db.update<User>(USERS_COLLECTION, user.id, {
         ...user,
-        rank: rankMap.get(user.id) || 0,
+        season_rank: (user.season_points || 0) > 0 ? (rankMap.get(user.id) || null) : null,
       })
     )
   );

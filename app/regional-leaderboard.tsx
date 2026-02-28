@@ -52,7 +52,7 @@ export default function RegionalLeaderboardScreen() {
   const regionalUsers = useMemo(() => {
     return users
       .filter((user) => user.status === 'active' && user.region === region)
-      .sort((a, b) => b.points - a.points)
+      .sort((a, b) => (b.season_points || 0) - (a.season_points || 0))
       .map((user, index) => ({ ...user, regionalRank: index + 1 }));
   }, [users, region]);
 
@@ -66,8 +66,8 @@ export default function RegionalLeaderboardScreen() {
   }, [ambassadorFeed, regionUserIdSet]);
 
   const regionStats = useMemo(() => {
-    const totalPoints = regionalUsers.reduce((sum, user) => sum + user.points, 0);
-    const totalPosts = regionalUsers.reduce((sum, user) => sum + user.stats.totalPosts, 0);
+    const totalPoints = regionalUsers.reduce((sum, user) => sum + (user.season_points || 0), 0);
+    const totalPosts = regionalUsers.reduce((sum, user) => sum + (user.season_submission_count || 0), 0);
     const totalImpressions = regionalUsers.reduce((sum, user) => sum + user.stats.totalImpressions, 0);
     return {
       ambassadors: regionalUsers.length,
@@ -199,10 +199,10 @@ export default function RegionalLeaderboardScreen() {
                   <Image source={normalizeAvatarUri(user.avatar)} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" transition={0} />
                   <View>
                     <Text style={styles.name}>{user.name}</Text>
-                    <Text style={styles.meta}>{user.stats.totalPosts} posts</Text>
+                    <Text style={styles.meta}>{user.season_submission_count || 0} posts</Text>
                   </View>
                 </View>
-                <Text style={styles.points}>{formatWholePoints(user.points)}</Text>
+                <Text style={styles.points}>{formatWholePoints(user.season_points || 0)}</Text>
               </PressableScale>
             ))}
           </View>
@@ -248,11 +248,11 @@ export default function RegionalLeaderboardScreen() {
 
               <View style={styles.recapStatsRow}>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{selectedAmbassador.rank || '-'}</Text>
+                  <Text style={styles.recapStatValue}>{selectedAmbassador.season_rank || '-'}</Text>
                   <Text style={styles.recapStatLabel}>Ranking</Text>
                 </View>
                 <View style={styles.recapStatCard}>
-                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedAmbassador.points)}</Text>
+                  <Text style={styles.recapStatValue}>{formatWholePoints(selectedAmbassador.season_points || 0)}</Text>
                   <Text style={styles.recapStatLabel}>Points</Text>
                 </View>
               </View>
