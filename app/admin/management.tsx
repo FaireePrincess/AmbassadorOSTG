@@ -334,6 +334,9 @@ export default function AdminScreen() {
               setIsClosingSeason(true);
               const result = await trpcClient.seasons.closeAndStartNew.mutate({
                 adminUserId: currentUser.id,
+                ...(currentSeason?.number === 2
+                  ? { nextSeasonName: 'Season 1', nextSeasonNumber: 1 }
+                  : {}),
               });
               await Promise.all([refreshUsers(), loadCurrentSeason(), refreshAppData()]);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

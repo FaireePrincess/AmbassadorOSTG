@@ -7,6 +7,25 @@ import type { Season, SeasonResetLog, Submission, Task, User } from "@/types";
 const COLLECTION = "seasons";
 const RESET_LOGS_COLLECTION = "season_resets";
 
+async function backfillActiveTasksToCurrentSeason(currentSeason: Season): Promise<number> {
+  const tasks = await db.getCollection<Task>("tasks");
+  const toBackfill = tasks.filter(
+    (task) => !task.seasonId && (task.status === "active" || task.status === "upcoming")
+  );
+
+  if (toBackfill.length === 0) return 0;
+
+  await Promise.all(
+    toBackfill.map((task) =>
+      db.update<Task>("tasks", task.id, {
+        ...task,
+        seasonId: currentSeason.id,
+      })
+    )
+  );
+  return toBackfill.length;
+}
+
 async function validateResetReadiness(currentSeason: Season): Promise<{ ok: boolean; reasons: string[] }> {
   const [tasks, submissions] = await Promise.all([
     db.getCollection<Task>("tasks"),
@@ -56,6 +75,8 @@ export const seasonsRouter = createTRPCRouter({
     .input(
       z.object({
         adminUserId: z.string(),
+        nextSeasonName: z.string().min(1).optional(),
+        nextSeasonNumber: z.number().int().min(1).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -66,6 +87,7 @@ export const seasonsRouter = createTRPCRouter({
       }
 
       const currentSeason = await ensureActiveSeason();
+      await backfillActiveTasksToCurrentSeason(currentSeason);
       const readiness = await validateResetReadiness(currentSeason);
       if (!readiness.ok) {
         throw new Error(`Season reset blocked: ${readiness.reasons.join("; ")}`);
@@ -81,11 +103,11 @@ export const seasonsRouter = createTRPCRouter({
       };
       await db.update<Season>(COLLECTION, currentSeason.id, closedSeason);
 
-      const nextSeasonNumber = currentSeason.number + 1;
+      const nextSeasonNumber = input.nextSeasonNumber ?? (currentSeason.number + 1);
       const nextSeason: Season = {
         id: `season-${nextSeasonNumber}-${Date.now()}`,
         number: nextSeasonNumber,
-        name: `Season ${nextSeasonNumber}`,
+        name: input.nextSeasonName || `Season ${nextSeasonNumber}`,
         status: "active",
         startedAt: nowIso,
       };
