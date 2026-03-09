@@ -160,11 +160,27 @@ function canTrackSubmission(submission: Submission): boolean {
 }
 
 function isCriticalError(message: string): boolean {
-  return (
-    message.includes("TWITTER_BEARER_TOKEN") ||
-    message.includes("401") ||
-    message.includes("403")
-  );
+  if (message.includes("TWITTER_BEARER_TOKEN")) return true;
+  if (message.includes("401")) return true;
+
+  // Distinguish true auth/permission failures from temporary edge challenge pages.
+  if (message.includes("403")) {
+    const lower = message.toLowerCase();
+    if (lower.includes("<!doctype html") || lower.includes("just a moment")) {
+      return false;
+    }
+    if (
+      lower.includes("unauthorized") ||
+      lower.includes("forbidden") ||
+      lower.includes("client-not-enrolled") ||
+      lower.includes("not authorized")
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
 }
 
 let runInProgress = false;
@@ -190,6 +206,7 @@ type RunOptions = {
   ignoreRateLimit?: boolean;
   maxBatch?: number;
   force?: boolean;
+  fetchFollowers?: boolean;
 };
 
 function pruneLogs() {
@@ -316,6 +333,7 @@ export async function runXMetricsTrackingBatch(
   xMetricsStatus.running = true;
   xMetricsStatus.lastReason = reason;
   const startedAt = Date.now();
+  const shouldFetchFollowers = options?.fetchFollowers !== false;
 
   let processed = 0;
   let errors = 0;
@@ -412,16 +430,20 @@ export async function runXMetricsTrackingBatch(
         if (!expiry) continue;
         const handle = normalizeTwitterHandle(user?.handles?.twitter);
         const followerCacheKey = handle || `user:${submission.userId}`;
-        let followerCount = followerCache.get(followerCacheKey) || 0;
+        let followerCount = followerCache.get(followerCacheKey) || user?.stats?.xFollowers || 0;
 
         if (handle && !followerCache.has(followerCacheKey)) {
-          try {
-            const userMetrics = await fetchUserMetricsByHandle(handle);
-            followerCount = userMetrics.followers;
-          } catch {
-            followerCount = 0;
+          if (followerCount > 0 || !shouldFetchFollowers) {
+            followerCache.set(followerCacheKey, followerCount);
+          } else {
+            try {
+              const userMetrics = await fetchUserMetricsByHandle(handle);
+              followerCount = userMetrics.followers;
+            } catch {
+              followerCount = 0;
+            }
+            followerCache.set(followerCacheKey, followerCount);
           }
-          followerCache.set(followerCacheKey, followerCount);
         }
 
         const nextMetrics = {
