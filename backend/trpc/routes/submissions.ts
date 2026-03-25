@@ -365,7 +365,9 @@ export const submissionsRouter = createTRPCRouter({
             totalScore: Math.min(100, Number((contentOnly + nextEngagement).toFixed(2))),
           };
         } else if (!hasTwitterLink) {
-          const engagementScore = computeEngagementScore({ ...submission, metrics: nextMetrics });
+          // Preserve the admin-entered score for non-X platforms instead of
+          // recomputing it from metrics, which can be missing or intentionally manual.
+          const engagementScore = Math.max(0, Math.min(20, Number(nextRating.engagementScore || 0)));
           const contentOnly = Math.max(0, (nextRating.totalScore || 0) - (nextRating.engagementScore || 0));
           nextRating = {
             ...nextRating,

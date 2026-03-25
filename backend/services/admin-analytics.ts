@@ -8,6 +8,13 @@ const USERS_COLLECTION = "users";
 const POSTS_COLLECTION = "ambassador_posts";
 const TASKS_COLLECTION = "tasks";
 
+function getSavedOrComputedEngagementScore(submission: Submission): number {
+  if (typeof submission.rating?.engagementScore === "number") {
+    return submission.rating.engagementScore;
+  }
+  return computeEngagementScore(submission);
+}
+
 function toWeekKey(dateValue?: string): string {
   const now = dateValue ? new Date(dateValue) : new Date();
   if (Number.isNaN(now.getTime())) return "unknown";
@@ -94,7 +101,7 @@ export async function getProgramAnalytics() {
       acc.likes += item.metrics?.likes || 0;
       acc.comments += item.metrics?.comments || 0;
       acc.shares += item.metrics?.shares || 0;
-      acc.score += computeEngagementScore(item);
+      acc.score += getSavedOrComputedEngagementScore(item);
       return acc;
     },
     { impressions: 0, likes: 0, comments: 0, shares: 0, score: 0 }
@@ -200,7 +207,7 @@ export async function getProgramAnalytics() {
     if (submission.status === "approved") {
       entry.approved += 1;
       entry.scoreSum += submission.rating?.totalScore || 0;
-      entry.engagementSum += computeEngagementScore(submission);
+      entry.engagementSum += getSavedOrComputedEngagementScore(submission);
     }
     trends.set(week, entry);
   }
