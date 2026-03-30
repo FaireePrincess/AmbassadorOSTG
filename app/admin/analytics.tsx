@@ -288,8 +288,11 @@ export default function AdminAnalyticsScreen() {
             <Text style={styles.emptyText}>No campaign data found for this season.</Text>
           ) : (
             <View style={styles.campaignList}>
-              {campaigns.map((campaign) => (
-                <PressableScale key={campaign.campaignId} style={styles.campaignCard} onPress={() => toggleCampaign(campaign.campaignId)} hapticType="selection">
+              {campaigns.map((campaign) => {
+                const campaignKey = `${campaign.campaignId}:${campaign.campaignTitle}`;
+                const isExpanded = expandedCampaignIds.includes(campaignKey);
+                return (
+                <PressableScale key={campaignKey} style={styles.campaignCard} onPress={() => toggleCampaign(campaignKey)} hapticType="selection">
                   <View style={styles.campaignHeader}>
                     <View style={styles.campaignHeaderBody}>
                       <Text style={styles.campaignTitle}>{campaign.campaignTitle}</Text>
@@ -299,12 +302,12 @@ export default function AdminAnalyticsScreen() {
                     </View>
                     <View style={styles.campaignHeaderSide}>
                       <Text style={styles.campaignMeta}>{formatCompletion(campaign.completionRate)}</Text>
-                      {expandedCampaignIds.includes(campaign.campaignId)
+                      {isExpanded
                         ? <ChevronUp size={18} color={Colors.dark.textSecondary} />
                         : <ChevronDown size={18} color={Colors.dark.textSecondary} />}
                     </View>
                   </View>
-                  {expandedCampaignIds.includes(campaign.campaignId) && (
+                  {isExpanded && (
                     <>
                       <View style={styles.campaignStatsGrid}>
                         <CampaignStat label="Tasks" value={formatInteger(campaign.tasks)} />
@@ -318,7 +321,7 @@ export default function AdminAnalyticsScreen() {
                     </>
                   )}
                 </PressableScale>
-              ))}
+              )})}
             </View>
           )}
         </View>

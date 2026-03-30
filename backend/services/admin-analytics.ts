@@ -104,7 +104,7 @@ function buildCampaignResults(args: {
     const key = normalizeCampaignKey(task.campaignId, task.campaignTitle) || task.id;
     const latestActivityTs = parseDateValue(task.deadline);
     const entry = campaignMap.get(key) || {
-      campaignId: task.campaignId || key,
+      campaignId: key,
       campaignTitle: task.campaignTitle || "Untitled Campaign",
       taskIds: new Set<string>(),
       submissions: 0,
@@ -161,7 +161,9 @@ function buildCampaignResults(args: {
       entry.approvedSubmissions += 1;
       entry.scoreSum += submission.rating?.totalScore || 0;
       entry.totalImpressions += submission.metrics?.impressions || 0;
-      entry.approvedTaskIds.add(submission.taskId);
+      if (entry.taskIds.has(submission.taskId)) {
+        entry.approvedTaskIds.add(submission.taskId);
+      }
     }
 
     campaignMap.set(key, entry);
