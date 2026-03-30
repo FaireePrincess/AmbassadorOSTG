@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   CalendarRange,
@@ -15,9 +16,64 @@ import {
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
-import { trpc } from '@/lib/trpc';
+import { getApiBaseUrl, trpc } from '@/lib/trpc';
 import AppBackButton from '@/components/AppBackButton';
 import PressableScale from '@/components/PressableScale';
+
+type AnalyticsCampaign = {
+  campaignId: string;
+  campaignTitle: string;
+  tasks: number;
+  submissions: number;
+  approvedSubmissions: number;
+  approvalRate: number;
+  completionRate: number;
+  averageScore: number;
+  totalImpressions: number;
+  averageImpressions: number;
+  submissionsPerPlatform: Record<string, number>;
+};
+
+type AnalyticsResponse = {
+  season: {
+    id: string;
+    name: string;
+    number: number;
+    status: 'active' | 'closed';
+    startedAt: string;
+    endedAt?: string;
+    isCurrent: boolean;
+    referenceWeekKey: string;
+    totalTasks: number;
+    scopedTaskCount: number;
+    totalApprovedSubmissions: number;
+  };
+  volume: {
+    totalSubmissions: number;
+    submissionsPerPlatform: Record<string, number>;
+    submissionsPerRegion: Record<string, number>;
+    activeAmbassadorsThisWeek: number;
+    inactiveAmbassadors: number;
+  };
+  quality: {
+    approvalRate: number;
+    averageContentScore: number;
+    scoreDistribution20: Record<string, number>;
+    topBottomSpread: number;
+  };
+  engagement: {
+    totalImpressions: number;
+    averageImpressionsPerSubmission: number;
+    averageImpressionsPerRegion: Record<string, number>;
+    distributionCurve: Record<string, number>;
+  };
+  speed: {
+    averageReviewTimeHours: number;
+    averageTimeToSubmissionHours: number;
+    taskCompletionRate: number;
+  };
+  campaigns: AnalyticsCampaign[];
+};
 
 export default function AdminAnalyticsScreen() {
   const router = useRouter();
@@ -27,10 +83,29 @@ export default function AdminAnalyticsScreen() {
   const seasonsQuery = trpc.seasons.list.useQuery(undefined, {
     enabled: Boolean(isAdmin && currentUser?.id),
   });
-  const analyticsQuery = trpc.admin.analytics.useQuery(
-    { adminUserId: currentUser?.id || '', seasonId: selectedSeasonId },
-    { enabled: Boolean(isAdmin && currentUser?.id) }
-  );
+  const analyticsQuery = useQuery({
+    queryKey: ['admin-analytics-rest', currentUser?.id || '', selectedSeasonId || 'current'],
+    enabled: Boolean(isAdmin && currentUser?.id),
+    queryFn: async () => {
+      const baseUrl = getApiBaseUrl();
+      const params = new URLSearchParams({ adminUserId: currentUser!.id });
+      if (selectedSeasonId) {
+        params.set('seasonId', selectedSeasonId);
+      }
+
+      const response = await fetch(`${baseUrl}/admin/analytics?${params.toString()}`);
+      if (!response.ok) {
+        let message = 'Failed to load analytics.';
+        try {
+          const payload = await response.json() as { error?: string };
+          message = payload.error || message;
+        } catch {
+        }
+        throw new Error(message);
+      }
+      return response.json() as Promise<AnalyticsResponse>;
+    },
+  });
 
   if (!isAdmin) {
     return (
@@ -51,7 +126,7 @@ export default function AdminAnalyticsScreen() {
   if (analyticsQuery.error || !analyticsQuery.data) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.error}>Failed to load analytics.</Text>
+        <Text style={styles.error}>{analyticsQuery.error instanceof Error ? analyticsQuery.error.message : 'Failed to load analytics.'}</Text>
       </SafeAreaView>
     );
   }

@@ -35,6 +35,7 @@ app.get("/debug/storage", async (c) => {
 
 app.get("/admin/analytics", async (c) => {
   const adminUserId = c.req.query("adminUserId");
+  const seasonId = c.req.query("seasonId") || undefined;
   if (!adminUserId) {
     return c.json({ error: "adminUserId is required" }, 400);
   }
@@ -44,7 +45,7 @@ app.get("/admin/analytics", async (c) => {
     return c.json({ error: "Admin access required" }, 403);
   }
 
-  const data = await getProgramAnalytics();
+  const data = await getProgramAnalytics(seasonId);
   return c.json(data);
 });
 
