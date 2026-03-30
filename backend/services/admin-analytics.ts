@@ -57,6 +57,17 @@ function getCompletionRateTaskScope(season: Season, seasonTasks: Task[]): Task[]
   return seasonTasks.filter((task) => task.status === "active");
 }
 
+function normalizeCampaignKey(campaignId?: string, campaignTitle?: string): string {
+  const titleKey = (campaignTitle || "").trim().toLowerCase();
+  if (titleKey) return titleKey;
+  return (campaignId || "").trim().toLowerCase();
+}
+
+function parseDateValue(value?: string): number {
+  const ts = Date.parse(value || "");
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
 function buildCampaignResults(args: {
   seasonTasks: Task[];
   seasonSubmissions: Submission[];
@@ -67,11 +78,12 @@ function buildCampaignResults(args: {
   submissions: number;
   approvedSubmissions: number;
   approvalRate: number;
-  completionRate: number;
+  completionRate: number | null;
   averageScore: number;
   totalImpressions: number;
   averageImpressions: number;
   submissionsPerPlatform: Record<string, number>;
+  latestActivityAt?: string;
 }> {
   const { seasonTasks, seasonSubmissions } = args;
   const campaignMap = new Map<string, {
@@ -84,10 +96,13 @@ function buildCampaignResults(args: {
     totalImpressions: number;
     approvedTaskIds: Set<string>;
     submissionsPerPlatform: Record<string, number>;
+    latestActivityTs: number;
+    latestActivityAt?: string;
   }>();
 
   for (const task of seasonTasks) {
-    const key = task.campaignId || task.campaignTitle || task.id;
+    const key = normalizeCampaignKey(task.campaignId, task.campaignTitle) || task.id;
+    const latestActivityTs = parseDateValue(task.deadline);
     const entry = campaignMap.get(key) || {
       campaignId: task.campaignId || key,
       campaignTitle: task.campaignTitle || "Untitled Campaign",
@@ -98,18 +113,28 @@ function buildCampaignResults(args: {
       totalImpressions: 0,
       approvedTaskIds: new Set<string>(),
       submissionsPerPlatform: {},
+      latestActivityTs,
+      latestActivityAt: task.deadline,
     };
     entry.taskIds.add(task.id);
+    if (latestActivityTs >= entry.latestActivityTs) {
+      entry.latestActivityTs = latestActivityTs;
+      entry.latestActivityAt = task.deadline || entry.latestActivityAt;
+    }
     campaignMap.set(key, entry);
   }
 
   const taskCampaignKey = new Map<string, string>();
   for (const task of seasonTasks) {
-    taskCampaignKey.set(task.id, task.campaignId || task.campaignTitle || task.id);
+    taskCampaignKey.set(task.id, normalizeCampaignKey(task.campaignId, task.campaignTitle) || task.id);
   }
 
   for (const submission of seasonSubmissions) {
-    const key = taskCampaignKey.get(submission.taskId) || submission.campaignTitle || submission.taskId;
+    const key =
+      taskCampaignKey.get(submission.taskId) ||
+      normalizeCampaignKey(undefined, submission.campaignTitle) ||
+      submission.taskId;
+    const latestActivityTs = parseDateValue(submission.submittedAt);
     const entry = campaignMap.get(key) || {
       campaignId: key,
       campaignTitle: submission.campaignTitle || "Untitled Campaign",
@@ -120,11 +145,17 @@ function buildCampaignResults(args: {
       totalImpressions: 0,
       approvedTaskIds: new Set<string>(),
       submissionsPerPlatform: {},
+      latestActivityTs,
+      latestActivityAt: submission.submittedAt,
     };
 
     entry.submissions += 1;
     const platformKey = submission.platform || "unknown";
     entry.submissionsPerPlatform[platformKey] = (entry.submissionsPerPlatform[platformKey] || 0) + 1;
+    if (latestActivityTs >= entry.latestActivityTs) {
+      entry.latestActivityTs = latestActivityTs;
+      entry.latestActivityAt = submission.submittedAt || entry.latestActivityAt;
+    }
 
     if (submission.status === "approved") {
       entry.approvedSubmissions += 1;
@@ -147,15 +178,18 @@ function buildCampaignResults(args: {
         submissions: entry.submissions,
         approvedSubmissions: approvedCount,
         approvalRate: entry.submissions > 0 ? approvedCount / entry.submissions : 0,
-        completionRate: taskCount > 0 ? entry.approvedTaskIds.size / taskCount : 0,
+        completionRate: taskCount > 0 ? entry.approvedTaskIds.size / taskCount : null,
         averageScore: approvedCount > 0 ? entry.scoreSum / approvedCount : 0,
         totalImpressions: entry.totalImpressions,
         averageImpressions: approvedCount > 0 ? entry.totalImpressions / approvedCount : 0,
         submissionsPerPlatform: entry.submissionsPerPlatform,
+        latestActivityAt: entry.latestActivityAt,
       };
     })
     .sort((a, b) => {
-      if (b.totalImpressions !== a.totalImpressions) return b.totalImpressions - a.totalImpressions;
+      const aTs = parseDateValue(a.latestActivityAt);
+      const bTs = parseDateValue(b.latestActivityAt);
+      if (bTs !== aTs) return bTs - aTs;
       if (b.submissions !== a.submissions) return b.submissions - a.submissions;
       return a.campaignTitle.localeCompare(b.campaignTitle);
     });

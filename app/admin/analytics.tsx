@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,8 @@ import {
   CalendarRange,
   CircleGauge,
   Clock3,
+  ChevronDown,
+  ChevronUp,
   Layers3,
   Sparkles,
   TrendingUp,
@@ -27,11 +29,12 @@ type AnalyticsCampaign = {
   submissions: number;
   approvedSubmissions: number;
   approvalRate: number;
-  completionRate: number;
+  completionRate: number | null;
   averageScore: number;
   totalImpressions: number;
   averageImpressions: number;
   submissionsPerPlatform: Record<string, number>;
+  latestActivityAt?: string;
 };
 
 type AnalyticsResponse = {
@@ -79,6 +82,7 @@ export default function AdminAnalyticsScreen() {
   const router = useRouter();
   const { currentUser, isAdmin } = useAuth();
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | undefined>(undefined);
+  const [expandedCampaignIds, setExpandedCampaignIds] = useState<string[]>([]);
 
   const seasonsQuery = trpc.seasons.list.useQuery(undefined, {
     enabled: Boolean(isAdmin && currentUser?.id),
@@ -124,8 +128,14 @@ export default function AdminAnalyticsScreen() {
   const quality = data.quality;
   const engagement = data.engagement;
   const speed = data.speed;
-  const campaigns = data.campaigns || [];
+  const campaigns = useMemo(() => (data.campaigns || []).slice(0, 10), [data.campaigns]);
   const seasons = seasonsQuery.data || [];
+
+  const toggleCampaign = (campaignId: string) => {
+    setExpandedCampaignIds((prev) =>
+      prev.includes(campaignId) ? prev.filter((id) => id !== campaignId) : [...prev, campaignId]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -270,7 +280,7 @@ export default function AdminAnalyticsScreen() {
             </LinearGradient>
             <View style={styles.sectionHeaderBody}>
               <Text style={styles.sectionTitle}>Campaign Results</Text>
-              <Text style={styles.sectionSubtitle}>Performance rollup by campaign for the selected season.</Text>
+              <Text style={styles.sectionSubtitle}>Latest 10 campaigns by activity. Tap a row to expand details.</Text>
             </View>
           </View>
 
@@ -279,21 +289,35 @@ export default function AdminAnalyticsScreen() {
           ) : (
             <View style={styles.campaignList}>
               {campaigns.map((campaign) => (
-                <View key={campaign.campaignId} style={styles.campaignCard}>
+                <PressableScale key={campaign.campaignId} style={styles.campaignCard} onPress={() => toggleCampaign(campaign.campaignId)} hapticType="selection">
                   <View style={styles.campaignHeader}>
-                    <Text style={styles.campaignTitle}>{campaign.campaignTitle}</Text>
-                    <Text style={styles.campaignMeta}>{formatPercent(campaign.completionRate)} completion</Text>
+                    <View style={styles.campaignHeaderBody}>
+                      <Text style={styles.campaignTitle}>{campaign.campaignTitle}</Text>
+                      <Text style={styles.campaignDate}>
+                        Latest activity: {formatDate(campaign.latestActivityAt)}
+                      </Text>
+                    </View>
+                    <View style={styles.campaignHeaderSide}>
+                      <Text style={styles.campaignMeta}>{formatCompletion(campaign.completionRate)}</Text>
+                      {expandedCampaignIds.includes(campaign.campaignId)
+                        ? <ChevronUp size={18} color={Colors.dark.textSecondary} />
+                        : <ChevronDown size={18} color={Colors.dark.textSecondary} />}
+                    </View>
                   </View>
-                  <View style={styles.campaignStatsGrid}>
-                    <CampaignStat label="Tasks" value={formatInteger(campaign.tasks)} />
-                    <CampaignStat label="Submissions" value={formatInteger(campaign.submissions)} />
-                    <CampaignStat label="Approved" value={formatInteger(campaign.approvedSubmissions)} />
-                    <CampaignStat label="Approval" value={formatPercent(campaign.approvalRate)} />
-                    <CampaignStat label="Avg score" value={campaign.averageScore.toFixed(1)} />
-                    <CampaignStat label="Impressions" value={formatInteger(campaign.totalImpressions)} />
-                  </View>
-                  <MetricList label="Submissions per platform" values={campaign.submissionsPerPlatform} compact />
-                </View>
+                  {expandedCampaignIds.includes(campaign.campaignId) && (
+                    <>
+                      <View style={styles.campaignStatsGrid}>
+                        <CampaignStat label="Tasks" value={formatInteger(campaign.tasks)} />
+                        <CampaignStat label="Submissions" value={formatInteger(campaign.submissions)} />
+                        <CampaignStat label="Approved" value={formatInteger(campaign.approvedSubmissions)} />
+                        <CampaignStat label="Approval" value={formatPercent(campaign.approvalRate)} />
+                        <CampaignStat label="Avg score" value={campaign.averageScore.toFixed(1)} />
+                        <CampaignStat label="Impressions" value={formatInteger(campaign.totalImpressions)} />
+                      </View>
+                      <MetricList label="Submissions per platform" values={campaign.submissionsPerPlatform} compact />
+                    </>
+                  )}
+                </PressableScale>
               ))}
             </View>
           )}
@@ -332,6 +356,11 @@ function formatDate(value?: string): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function formatCompletion(value: number | null): string {
+  if (value === null) return 'N/A';
+  return `${formatPercent(value)} completion`;
 }
 
 function MetricTile({ label, value }: { label: string; value: string }) {
@@ -610,15 +639,27 @@ const styles = StyleSheet.create({
   },
   campaignHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  campaignHeaderBody: {
+    flex: 1,
+    gap: 4,
+  },
+  campaignHeaderSide: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   campaignTitle: {
     flex: 1,
     color: Colors.dark.text,
     fontSize: Typography.sizes.h3,
     fontWeight: Typography.weights.bold,
+  },
+  campaignDate: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.caption,
   },
   campaignMeta: {
     color: Colors.dark.secondaryLight,
