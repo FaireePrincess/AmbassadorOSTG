@@ -39,7 +39,7 @@ const ADMIN_ITEMS: AdminItem[] = [
   {
     id: 'program',
     title: 'Program Analytics',
-    subtitle: 'Overall health and performance',
+    subtitle: 'Season archive, campaign results, and overall health',
     icon: BarChart3,
     colors: ['#a78bfa', '#7c3aed'],
     route: '/admin/analytics',

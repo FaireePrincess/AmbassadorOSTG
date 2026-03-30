@@ -22,10 +22,10 @@ async function ensureAdmin(adminUserId: string) {
 
 export const adminRouter = createTRPCRouter({
   analytics: publicProcedure
-    .input(z.object({ adminUserId: z.string() }))
+    .input(z.object({ adminUserId: z.string(), seasonId: z.string().optional() }))
     .query(async ({ input }) => {
       await ensureAdmin(input.adminUserId);
-      return getProgramAnalytics();
+      return getProgramAnalytics(input.seasonId);
     }),
 
   analyticsRegions: publicProcedure

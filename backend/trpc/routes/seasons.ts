@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../create-context";
 import { db } from "@/backend/db";
 import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason, listSeasons, setCurrentSeasonConfig } from "@/backend/services/season";
+import { recomputeAllUserPerformance } from "@/backend/services/performance";
 import type { Season, SeasonResetLog, Submission, Task, User } from "@/types";
 
 const COLLECTION = "seasons";
@@ -59,6 +60,18 @@ async function validateResetReadiness(currentSeason: Season): Promise<{ ok: bool
   }
 
   return { ok: reasons.length === 0, reasons };
+}
+
+function parseTaskDeadlineTs(task: Task): number | null {
+  const ts = Date.parse(task.deadline || "");
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function shouldCarryTaskToNextSeason(task: Task, seasonEndedAtIso: string): boolean {
+  const deadlineTs = parseTaskDeadlineTs(task);
+  const seasonEndTs = Date.parse(seasonEndedAtIso);
+  if (deadlineTs === null || Number.isNaN(seasonEndTs)) return false;
+  return deadlineTs > seasonEndTs;
 }
 
 export const seasonsRouter = createTRPCRouter({
@@ -127,20 +140,39 @@ export const seasonsRouter = createTRPCRouter({
       await Promise.all(resetOps);
 
       const tasks = await db.getCollection<Task>("tasks");
-      const archiveTaskOps = tasks
-        .filter((task) => isTaskInSeason(task, currentSeason))
-        .map((task) =>
-          db.update<Task>("tasks", task.id, {
-            ...task,
-            seasonId: task.seasonId || currentSeason.id,
-            status: "completed",
-          })
-        );
-      await Promise.all(archiveTaskOps);
+      const currentSeasonTasks = tasks.filter((task) => isTaskInSeason(task, currentSeason));
+      const carriedTaskIds = new Set(
+        currentSeasonTasks
+          .filter((task) => shouldCarryTaskToNextSeason(task, nowIso))
+          .map((task) => task.id)
+      );
+
+      const taskOps = currentSeasonTasks.map((task) => {
+        const carriesForward = carriedTaskIds.has(task.id);
+        return db.update<Task>("tasks", task.id, {
+          ...task,
+          seasonId: carriesForward ? nextSeason.id : (task.seasonId || currentSeason.id),
+          status: carriesForward ? task.status : "completed",
+        });
+      });
+      await Promise.all(taskOps);
 
       const submissions = await db.getCollection<Submission>("submissions");
+      const carrySubmissionOps = submissions
+        .filter((submission) => carriedTaskIds.has(submission.taskId))
+        .map((submission) =>
+          db.update<Submission>("submissions", submission.id, {
+            ...submission,
+            seasonId: nextSeason.id,
+          })
+        );
+      await Promise.all(carrySubmissionOps);
+
       const currentSeasonApproved = submissions.filter(
-        (submission) => submission.status === "approved" && isSubmissionInSeason(submission, currentSeason)
+        (submission) =>
+          submission.status === "approved" &&
+          !carriedTaskIds.has(submission.taskId) &&
+          isSubmissionInSeason(submission, currentSeason)
       );
 
       const closedSeasonWithSummary: Season = {
@@ -157,12 +189,14 @@ export const seasonsRouter = createTRPCRouter({
         createdAt: nowIso,
       };
       await db.create<SeasonResetLog>(RESET_LOGS_COLLECTION, resetLog);
+      await recomputeAllUserPerformance();
 
       return {
         closedSeason: closedSeasonWithSummary,
         newSeason: nextSeason,
         resetUserCount: usersToReset.length,
         resetApprovedSubmissions: currentSeasonApproved.length,
+        carriedTaskCount: carriedTaskIds.size,
       };
     }),
 });

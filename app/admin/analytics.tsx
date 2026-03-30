@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   BarChart3,
+  CalendarRange,
   CircleGauge,
   Clock3,
+  Layers3,
   Sparkles,
   TrendingUp,
 } from 'lucide-react-native';
@@ -15,12 +17,18 @@ import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
 import { trpc } from '@/lib/trpc';
 import AppBackButton from '@/components/AppBackButton';
+import PressableScale from '@/components/PressableScale';
 
 export default function AdminAnalyticsScreen() {
   const router = useRouter();
   const { currentUser, isAdmin } = useAuth();
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | undefined>(undefined);
+
+  const seasonsQuery = trpc.seasons.list.useQuery(undefined, {
+    enabled: Boolean(isAdmin && currentUser?.id),
+  });
   const analyticsQuery = trpc.admin.analytics.useQuery(
-    { adminUserId: currentUser?.id || '' },
+    { adminUserId: currentUser?.id || '', seasonId: selectedSeasonId },
     { enabled: Boolean(isAdmin && currentUser?.id) }
   );
 
@@ -32,7 +40,7 @@ export default function AdminAnalyticsScreen() {
     );
   }
 
-  if (analyticsQuery.isLoading) {
+  if (analyticsQuery.isLoading || seasonsQuery.isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator color={Colors.dark.primary} />
@@ -49,23 +57,76 @@ export default function AdminAnalyticsScreen() {
   }
 
   const data = analyticsQuery.data;
+  const season = data.season;
   const volume = data.volume;
   const quality = data.quality;
   const engagement = data.engagement;
   const speed = data.speed;
+  const campaigns = data.campaigns || [];
+  const seasons = seasonsQuery.data || [];
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#05070d', '#090b12', '#0d0d12']} style={styles.gradientBg} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AppBackButton onPress={() => router.back()} />
+
         <View style={styles.header}>
           <View style={styles.headerBadge}>
             <Sparkles size={14} color={Colors.dark.secondary} />
             <Text style={styles.headerBadgeText}>Metrics Lab</Text>
           </View>
           <Text style={styles.title}>Program Analytics</Text>
-          <Text style={styles.subtitle}>Volume, quality, engagement, and speed in one view.</Text>
+          <Text style={styles.subtitle}>Season-aware reporting with campaign results and historical review.</Text>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <LinearGradient colors={['#34d399', '#10b981']} style={styles.iconWrap}>
+              <CalendarRange size={18} color="#fff" />
+            </LinearGradient>
+            <View style={styles.sectionHeaderBody}>
+              <Text style={styles.sectionTitle}>Season Scope</Text>
+              <Text style={styles.sectionSubtitle}>Switch between the live season and closed seasons without resetting history.</Text>
+            </View>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasonTabs}>
+            <PressableScale
+              style={[styles.seasonChip, !selectedSeasonId && styles.seasonChipActive]}
+              onPress={() => setSelectedSeasonId(undefined)}
+              hapticType="selection"
+            >
+              <Text style={[styles.seasonChipText, !selectedSeasonId && styles.seasonChipTextActive]}>
+                Current
+              </Text>
+            </PressableScale>
+            {seasons.map((item) => {
+              const active = season.id === item.id;
+              return (
+                <PressableScale
+                  key={item.id}
+                  style={[styles.seasonChip, active && styles.seasonChipActive]}
+                  onPress={() => setSelectedSeasonId(item.id)}
+                  hapticType="selection"
+                >
+                  <Text style={[styles.seasonChipText, active && styles.seasonChipTextActive]}>
+                    {item.name}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.metricsGrid}>
+            <MetricTile label="Selected season" value={season.name} />
+            <MetricTile label="Status" value={season.status === 'active' ? 'Active' : 'Closed'} />
+            <MetricTile label="Tasks in season" value={formatInteger(season.totalTasks)} />
+            <MetricTile label="Approved submissions" value={formatInteger(season.totalApprovedSubmissions)} />
+          </View>
+          <Text style={styles.scopeMeta}>
+            {formatSeasonRange(season.startedAt, season.endedAt)} • {season.isCurrent ? 'Current live season' : 'Historical season view'}
+          </Text>
         </View>
 
         <View style={styles.sectionCard}>
@@ -80,7 +141,7 @@ export default function AdminAnalyticsScreen() {
           </View>
           <View style={styles.metricsGrid}>
             <MetricTile label="Total submissions" value={formatInteger(volume.totalSubmissions)} />
-            <MetricTile label="Active ambassadors (week)" value={formatInteger(volume.activeAmbassadorsThisWeek)} />
+            <MetricTile label="Active ambassadors (latest week)" value={formatInteger(volume.activeAmbassadorsThisWeek)} />
             <MetricTile label="Inactive ambassadors" value={formatInteger(volume.inactiveAmbassadors)} />
           </View>
           <MetricList label="Submissions per platform" values={volume.submissionsPerPlatform} />
@@ -139,6 +200,42 @@ export default function AdminAnalyticsScreen() {
             <MetricTile label="Task completion rate" value={formatPercent(speed.taskCompletionRate)} />
           </View>
         </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <LinearGradient colors={['#38bdf8', '#6366f1']} style={styles.iconWrap}>
+              <Layers3 size={18} color="#fff" />
+            </LinearGradient>
+            <View style={styles.sectionHeaderBody}>
+              <Text style={styles.sectionTitle}>Campaign Results</Text>
+              <Text style={styles.sectionSubtitle}>Performance rollup by campaign for the selected season.</Text>
+            </View>
+          </View>
+
+          {campaigns.length === 0 ? (
+            <Text style={styles.emptyText}>No campaign data found for this season.</Text>
+          ) : (
+            <View style={styles.campaignList}>
+              {campaigns.map((campaign) => (
+                <View key={campaign.campaignId} style={styles.campaignCard}>
+                  <View style={styles.campaignHeader}>
+                    <Text style={styles.campaignTitle}>{campaign.campaignTitle}</Text>
+                    <Text style={styles.campaignMeta}>{formatPercent(campaign.completionRate)} completion</Text>
+                  </View>
+                  <View style={styles.campaignStatsGrid}>
+                    <CampaignStat label="Tasks" value={formatInteger(campaign.tasks)} />
+                    <CampaignStat label="Submissions" value={formatInteger(campaign.submissions)} />
+                    <CampaignStat label="Approved" value={formatInteger(campaign.approvedSubmissions)} />
+                    <CampaignStat label="Approval" value={formatPercent(campaign.approvalRate)} />
+                    <CampaignStat label="Avg score" value={campaign.averageScore.toFixed(1)} />
+                    <CampaignStat label="Impressions" value={formatInteger(campaign.totalImpressions)} />
+                  </View>
+                  <MetricList label="Submissions per platform" values={campaign.submissionsPerPlatform} compact />
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -159,6 +256,22 @@ function formatHours(value: number): string {
   return `${days.toFixed(1)}d`;
 }
 
+function formatSeasonRange(startedAt?: string, endedAt?: string): string {
+  const start = formatDate(startedAt);
+  const end = endedAt ? formatDate(endedAt) : 'Live now';
+  return `${start} -> ${end}`;
+}
+
+function formatDate(value?: string): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metricTile}>
@@ -168,12 +281,21 @@ function MetricTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricList({ label, values }: { label: string; values?: Record<string, number> }) {
+function CampaignStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.campaignStat}>
+      <Text style={styles.campaignStatLabel}>{label}</Text>
+      <Text style={styles.campaignStatValue}>{value}</Text>
+    </View>
+  );
+}
+
+function MetricList({ label, values, compact = false }: { label: string; values?: Record<string, number>; compact?: boolean }) {
   const entries = Object.entries(values || {}).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) return null;
 
   return (
-    <View style={styles.listBlock}>
+    <View style={[styles.listBlock, compact && styles.listBlockCompact]}>
       <Text style={styles.listTitle}>{label}</Text>
       <View style={styles.listGrid}>
         {entries.map(([key, value]) => (
@@ -258,21 +380,21 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: '#171924',
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#24283a',
-    padding: 12,
-    gap: 10,
+    borderColor: '#262b3a',
+    padding: 18,
+    gap: 14,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -282,29 +404,29 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: Colors.dark.text,
-    fontSize: Typography.sizes.title,
+    fontSize: Typography.sizes.h3,
     fontWeight: Typography.weights.bold,
   },
   sectionSubtitle: {
-    color: Colors.dark.textMuted,
+    color: Colors.dark.textSecondary,
     fontSize: Typography.sizes.caption,
-    lineHeight: 16,
+    lineHeight: 18,
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   metricTile: {
-    minWidth: '48%',
+    minWidth: '47%',
     flexGrow: 1,
-    backgroundColor: '#11131c',
+    backgroundColor: '#10131b',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#24283a',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    gap: 4,
+    borderColor: '#23283a',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 6,
   },
   metricLabel: {
     color: Colors.dark.textMuted,
@@ -312,61 +434,64 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     color: Colors.dark.text,
-    fontSize: 18,
+    fontSize: Typography.sizes.h3,
     fontWeight: Typography.weights.bold,
   },
   listBlock: {
-    gap: 6,
+    gap: 10,
+  },
+  listBlockCompact: {
+    gap: 8,
   },
   listTitle: {
-    color: Colors.dark.textSecondary,
-    fontSize: Typography.sizes.caption,
+    color: Colors.dark.text,
+    fontSize: Typography.sizes.body,
     fontWeight: Typography.weights.semibold,
   },
   listGrid: {
-    gap: 6,
+    gap: 8,
   },
   listRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#11131c',
+    justifyContent: 'space-between',
+    backgroundColor: '#10131b',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#24283a',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 8,
+    borderColor: '#23283a',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
   },
   listKey: {
     flex: 1,
-    color: Colors.dark.text,
+    color: Colors.dark.textSecondary,
     fontSize: Typography.sizes.body,
   },
   listValue: {
-    color: Colors.dark.textSecondary,
+    color: Colors.dark.text,
     fontSize: Typography.sizes.body,
     fontWeight: Typography.weights.semibold,
   },
   distributionWrap: {
-    gap: 7,
+    gap: 10,
   },
   distributionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   distributionLabel: {
-    width: 52,
+    width: 68,
     color: Colors.dark.textSecondary,
     fontSize: Typography.sizes.caption,
   },
   distributionTrack: {
     flex: 1,
-    height: 8,
+    height: 10,
     borderRadius: 999,
+    backgroundColor: '#10131b',
     overflow: 'hidden',
-    backgroundColor: '#22263a',
   },
   distributionFill: {
     height: '100%',
@@ -374,15 +499,101 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.primary,
   },
   distributionCount: {
-    width: 28,
+    width: 30,
     textAlign: 'right',
     color: Colors.dark.text,
     fontSize: Typography.sizes.caption,
     fontWeight: Typography.weights.semibold,
   },
+  seasonTabs: {
+    gap: 8,
+    paddingRight: 12,
+  },
+  seasonChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#2b3144',
+    backgroundColor: '#10131b',
+  },
+  seasonChipActive: {
+    backgroundColor: '#173522',
+    borderColor: '#2fbf71',
+  },
+  seasonChipText: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.medium,
+  },
+  seasonChipTextActive: {
+    color: '#dffbea',
+    fontWeight: Typography.weights.semibold,
+  },
+  scopeMeta: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.caption,
+    lineHeight: 18,
+  },
+  campaignList: {
+    gap: 12,
+  },
+  campaignCard: {
+    backgroundColor: '#10131b',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#23283a',
+    padding: 14,
+    gap: 12,
+  },
+  campaignHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  campaignTitle: {
+    flex: 1,
+    color: Colors.dark.text,
+    fontSize: Typography.sizes.h3,
+    fontWeight: Typography.weights.bold,
+  },
+  campaignMeta: {
+    color: Colors.dark.secondaryLight,
+    fontSize: Typography.sizes.caption,
+    fontWeight: Typography.weights.semibold,
+  },
+  campaignStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  campaignStat: {
+    minWidth: '30%',
+    flexGrow: 1,
+    backgroundColor: '#171924',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  campaignStatLabel: {
+    color: Colors.dark.textMuted,
+    fontSize: Typography.sizes.caption,
+  },
+  campaignStatValue: {
+    color: Colors.dark.text,
+    fontSize: Typography.sizes.body,
+    fontWeight: Typography.weights.bold,
+  },
+  emptyText: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.sizes.body,
+    lineHeight: 20,
+  },
   error: {
     color: Colors.dark.error,
-    padding: 20,
-    fontSize: Typography.sizes.body,
+    textAlign: 'center',
+    marginTop: 24,
   },
 });

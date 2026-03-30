@@ -1,7 +1,7 @@
 import { db } from "@/backend/db";
 import { computeEngagementScore, scoreBuckets } from "@/backend/services/performance";
-import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason } from "@/backend/services/season";
-import type { AmbassadorPost, Submission, Task, User } from "@/types";
+import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason, listSeasons } from "@/backend/services/season";
+import type { AmbassadorPost, Season, Submission, Task, User } from "@/types";
 
 const SUBMISSIONS_COLLECTION = "submissions";
 const USERS_COLLECTION = "users";
@@ -26,6 +26,141 @@ function toWeekKey(dateValue?: string): string {
   return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+async function resolveSeason(seasonId?: string): Promise<{ season: Season; isCurrentSeason: boolean }> {
+  const [currentSeason, seasons] = await Promise.all([ensureActiveSeason(), listSeasons()]);
+  if (!seasonId || seasonId === currentSeason.id) {
+    return { season: currentSeason, isCurrentSeason: true };
+  }
+
+  const season = seasons.find((item) => item.id === seasonId);
+  if (!season) {
+    throw new Error("Season not found");
+  }
+
+  return { season, isCurrentSeason: season.id === currentSeason.id };
+}
+
+function getReferenceWeekKey(seasonSubmissions: Submission[]): string {
+  const latestWeek = seasonSubmissions
+    .map((submission) => toWeekKey(submission.submittedAt))
+    .filter((value) => value !== "unknown")
+    .sort((a, b) => a.localeCompare(b))
+    .at(-1);
+
+  return latestWeek || toWeekKey();
+}
+
+function getCompletionRateTaskScope(season: Season, seasonTasks: Task[]): Task[] {
+  if (season.status === "closed") {
+    return seasonTasks.filter((task) => task.status !== "upcoming");
+  }
+  return seasonTasks.filter((task) => task.status === "active");
+}
+
+function buildCampaignResults(args: {
+  seasonTasks: Task[];
+  seasonSubmissions: Submission[];
+}): Array<{
+  campaignId: string;
+  campaignTitle: string;
+  tasks: number;
+  submissions: number;
+  approvedSubmissions: number;
+  approvalRate: number;
+  completionRate: number;
+  averageScore: number;
+  totalImpressions: number;
+  averageImpressions: number;
+  submissionsPerPlatform: Record<string, number>;
+}> {
+  const { seasonTasks, seasonSubmissions } = args;
+  const campaignMap = new Map<string, {
+    campaignId: string;
+    campaignTitle: string;
+    taskIds: Set<string>;
+    submissions: number;
+    approvedSubmissions: number;
+    scoreSum: number;
+    totalImpressions: number;
+    approvedTaskIds: Set<string>;
+    submissionsPerPlatform: Record<string, number>;
+  }>();
+
+  for (const task of seasonTasks) {
+    const key = task.campaignId || task.campaignTitle || task.id;
+    const entry = campaignMap.get(key) || {
+      campaignId: task.campaignId || key,
+      campaignTitle: task.campaignTitle || "Untitled Campaign",
+      taskIds: new Set<string>(),
+      submissions: 0,
+      approvedSubmissions: 0,
+      scoreSum: 0,
+      totalImpressions: 0,
+      approvedTaskIds: new Set<string>(),
+      submissionsPerPlatform: {},
+    };
+    entry.taskIds.add(task.id);
+    campaignMap.set(key, entry);
+  }
+
+  const taskCampaignKey = new Map<string, string>();
+  for (const task of seasonTasks) {
+    taskCampaignKey.set(task.id, task.campaignId || task.campaignTitle || task.id);
+  }
+
+  for (const submission of seasonSubmissions) {
+    const key = taskCampaignKey.get(submission.taskId) || submission.campaignTitle || submission.taskId;
+    const entry = campaignMap.get(key) || {
+      campaignId: key,
+      campaignTitle: submission.campaignTitle || "Untitled Campaign",
+      taskIds: new Set<string>(),
+      submissions: 0,
+      approvedSubmissions: 0,
+      scoreSum: 0,
+      totalImpressions: 0,
+      approvedTaskIds: new Set<string>(),
+      submissionsPerPlatform: {},
+    };
+
+    entry.submissions += 1;
+    const platformKey = submission.platform || "unknown";
+    entry.submissionsPerPlatform[platformKey] = (entry.submissionsPerPlatform[platformKey] || 0) + 1;
+
+    if (submission.status === "approved") {
+      entry.approvedSubmissions += 1;
+      entry.scoreSum += submission.rating?.totalScore || 0;
+      entry.totalImpressions += submission.metrics?.impressions || 0;
+      entry.approvedTaskIds.add(submission.taskId);
+    }
+
+    campaignMap.set(key, entry);
+  }
+
+  return [...campaignMap.values()]
+    .map((entry) => {
+      const taskCount = entry.taskIds.size;
+      const approvedCount = entry.approvedSubmissions;
+      return {
+        campaignId: entry.campaignId,
+        campaignTitle: entry.campaignTitle,
+        tasks: taskCount,
+        submissions: entry.submissions,
+        approvedSubmissions: approvedCount,
+        approvalRate: entry.submissions > 0 ? approvedCount / entry.submissions : 0,
+        completionRate: taskCount > 0 ? entry.approvedTaskIds.size / taskCount : 0,
+        averageScore: approvedCount > 0 ? entry.scoreSum / approvedCount : 0,
+        totalImpressions: entry.totalImpressions,
+        averageImpressions: approvedCount > 0 ? entry.totalImpressions / approvedCount : 0,
+        submissionsPerPlatform: entry.submissionsPerPlatform,
+      };
+    })
+    .sort((a, b) => {
+      if (b.totalImpressions !== a.totalImpressions) return b.totalImpressions - a.totalImpressions;
+      if (b.submissions !== a.submissions) return b.submissions - a.submissions;
+      return a.campaignTitle.localeCompare(b.campaignTitle);
+    });
+}
+
 export function computeSeasonTaskCompletionRate(args: {
   seasonTasks: Task[];
   seasonSubmissions: Submission[];
@@ -48,15 +183,16 @@ export function computeSeasonTaskCompletionRate(args: {
   return completedTaskIds.size / totalTasks;
 }
 
-export async function getProgramAnalytics() {
-  const [submissions, users, tasks, currentSeason] = await Promise.all([
+export async function getProgramAnalytics(seasonId?: string) {
+  const [{ season, isCurrentSeason }, submissions, users, tasks] = await Promise.all([
+    resolveSeason(seasonId),
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
     db.getCollection<User>(USERS_COLLECTION),
     db.getCollection<Task>(TASKS_COLLECTION),
-    ensureActiveSeason(),
   ]);
-  const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
-  const seasonTasks = tasks.filter((task) => isTaskInSeason(task, currentSeason));
+  const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, season));
+  const seasonTasks = tasks.filter((task) => isTaskInSeason(task, season));
+  const completionScopeTasks = getCompletionRateTaskScope(season, seasonTasks);
 
   const total = seasonSubmissions.length;
   const approved = seasonSubmissions.filter((s) => s.status === "approved");
@@ -138,11 +274,11 @@ export async function getProgramAnalytics() {
     else engagementCurve["10k+"] += 1;
   }
 
-  const weekKeyNow = toWeekKey();
+  const referenceWeekKey = getReferenceWeekKey(seasonSubmissions);
   const activeUsers = users.filter((user) => user.status === "active");
   const submittedThisWeek = new Set(
     seasonSubmissions
-      .filter((submission) => toWeekKey(submission.submittedAt) === weekKeyNow)
+      .filter((submission) => toWeekKey(submission.submittedAt) === referenceWeekKey)
       .map((submission) => submission.userId)
   );
   const activeAmbassadorsThisWeek = activeUsers.filter((user) => submittedThisWeek.has(user.id)).length;
@@ -181,7 +317,7 @@ export async function getProgramAnalytics() {
     : 0;
 
   const taskCompletionRate = computeSeasonTaskCompletionRate({
-    seasonTasks,
+    seasonTasks: completionScopeTasks,
     seasonSubmissions,
     completionStatus: "approved",
   });
@@ -212,7 +348,25 @@ export async function getProgramAnalytics() {
     trends.set(week, entry);
   }
 
+  const campaigns = buildCampaignResults({
+    seasonTasks,
+    seasonSubmissions,
+  });
+
   return {
+    season: {
+      id: season.id,
+      name: season.name,
+      number: season.number,
+      status: season.status,
+      startedAt: season.startedAt,
+      endedAt: season.endedAt,
+      isCurrent: isCurrentSeason,
+      referenceWeekKey,
+      totalTasks: seasonTasks.length,
+      scopedTaskCount: completionScopeTasks.length,
+      totalApprovedSubmissions: approved.length,
+    },
     totalSubmissions: total,
     approvalRate,
     averageScore: avgScore,
@@ -259,6 +413,7 @@ export async function getProgramAnalytics() {
       averageTimeToSubmissionHours,
       taskCompletionRate,
     },
+    campaigns,
   };
 }
 

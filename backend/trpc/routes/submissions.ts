@@ -124,7 +124,12 @@ async function getPosts(): Promise<AmbassadorPost[]> {
   return legacyMockPosts.length > 0 ? posts.filter((post) => !LEGACY_MOCK_POST_IDS.has(post.id)) : posts;
 }
 
-async function getTaskInfo(taskId: string): Promise<{ title: string; campaignTitle: string; requiredReferenceTweetUrl?: string }> {
+async function getTaskInfo(taskId: string): Promise<{
+  title: string;
+  campaignTitle: string;
+  requiredReferenceTweetUrl?: string;
+  seasonId?: string;
+}> {
   try {
     const tasks = await db.getCollection<Task>("tasks");
     const task = tasks.find((t) => t.id === taskId);
@@ -132,6 +137,7 @@ async function getTaskInfo(taskId: string): Promise<{ title: string; campaignTit
       title: task?.title || "Unknown Task",
       campaignTitle: task?.campaignTitle || "Unknown Campaign",
       requiredReferenceTweetUrl: task?.requiredReferenceTweetUrl,
+      seasonId: task?.seasonId,
     };
   } catch {
     return { title: "Unknown Task", campaignTitle: "Unknown Campaign" };
@@ -230,7 +236,7 @@ export const submissionsRouter = createTRPCRouter({
 
       const newSubmission: Submission = {
         id: `sub-${Date.now()}`,
-        seasonId: currentSeason.id,
+        seasonId: taskInfo.seasonId || currentSeason.id,
         userId: input.userId,
         taskId: input.taskId,
         taskTitle: taskInfo.title,
