@@ -16,7 +16,7 @@ import {
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiBaseUrl, trpc } from '@/lib/trpc';
+import { trpc, trpcClient } from '@/lib/trpc';
 import AppBackButton from '@/components/AppBackButton';
 import PressableScale from '@/components/PressableScale';
 
@@ -87,23 +87,10 @@ export default function AdminAnalyticsScreen() {
     queryKey: ['admin-analytics-rest', currentUser?.id || '', selectedSeasonId || 'current'],
     enabled: Boolean(isAdmin && currentUser?.id),
     queryFn: async () => {
-      const baseUrl = getApiBaseUrl();
-      const params = new URLSearchParams({ adminUserId: currentUser!.id });
-      if (selectedSeasonId) {
-        params.set('seasonId', selectedSeasonId);
-      }
-
-      const response = await fetch(`${baseUrl}/admin/analytics?${params.toString()}`);
-      if (!response.ok) {
-        let message = 'Failed to load analytics.';
-        try {
-          const payload = await response.json() as { error?: string };
-          message = payload.error || message;
-        } catch {
-        }
-        throw new Error(message);
-      }
-      return response.json() as Promise<AnalyticsResponse>;
+      return trpcClient.admin.analytics.query({
+        adminUserId: currentUser!.id,
+        seasonId: selectedSeasonId,
+      }) as Promise<AnalyticsResponse>;
     },
   });
 
