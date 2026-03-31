@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -97,6 +97,7 @@ export default function AdminAnalyticsScreen() {
       }) as Promise<AnalyticsResponse>;
     },
   });
+  const seasons = seasonsQuery.data || [];
 
   if (!isAdmin) {
     return (
@@ -128,8 +129,7 @@ export default function AdminAnalyticsScreen() {
   const quality = data.quality;
   const engagement = data.engagement;
   const speed = data.speed;
-  const campaigns = useMemo(() => (data.campaigns || []).slice(0, 10), [data.campaigns]);
-  const seasons = seasonsQuery.data || [];
+  const campaigns = data.campaigns.slice(0, 10);
 
   const toggleCampaign = (campaignId: string) => {
     setExpandedCampaignIds((prev) =>
