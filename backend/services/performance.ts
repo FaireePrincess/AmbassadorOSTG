@@ -74,6 +74,37 @@ export function normalizeTwitterUrl(value: string): string {
   }
 }
 
+export function extractTwitterAuthorHandle(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host !== "twitter.com" && host !== "x.com") return null;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length < 3 || parts[1]?.toLowerCase() !== "status") return null;
+    const handle = parts[0]?.match(/^([A-Za-z0-9_]{1,15})$/)?.[1];
+    return handle || null;
+  } catch {
+    const match = trimmed.match(/(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})\/status\/\d+/i);
+    return match?.[1] || null;
+  }
+}
+
+export function normalizeTwitterHandle(handle?: string): string | null {
+  if (!handle) return null;
+  const trimmed = handle.trim();
+  if (!trimmed) return null;
+
+  const withoutAt = trimmed.replace(/^@+/, "");
+  const fromUrl = withoutAt.match(/(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})/i);
+  if (fromUrl?.[1]) return fromUrl[1].toLowerCase();
+
+  const direct = withoutAt.match(/^([A-Za-z0-9_]{1,15})$/);
+  return direct?.[1]?.toLowerCase() || null;
+}
+
 export function extractTweetId(url: string): string | null {
   const patterns = [
     /twitter\.com\/\w+\/status\/(\d+)/i,

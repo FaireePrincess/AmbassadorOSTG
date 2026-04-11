@@ -70,6 +70,17 @@ type AnalyticsResponse = {
     averageImpressionsPerRegion: Record<string, number>;
     distributionCurve: Record<string, number>;
   };
+  extraContent: {
+    totalPosts: number;
+    trackingPosts: number;
+    expiredPosts: number;
+    errorPosts: number;
+    totalImpressions: number;
+    totalLikes: number;
+    totalReplies: number;
+    totalReposts: number;
+    postsPerRegion: Record<string, number>;
+  };
   speed: {
     averageReviewTimeHours: number;
     averageTimeToSubmissionHours: number;
@@ -128,6 +139,7 @@ export default function AdminAnalyticsScreen() {
   const volume = data.volume;
   const quality = data.quality;
   const engagement = data.engagement;
+  const extraContent = data.extraContent;
   const speed = data.speed;
   const campaigns = data.campaigns.slice(0, 10);
 
@@ -254,6 +266,25 @@ export default function AdminAnalyticsScreen() {
           </View>
           <MetricList label="Avg impressions per region" values={engagement.averageImpressionsPerRegion} />
           <DistributionList title="Engagement distribution curve" values={engagement.distributionCurve} />
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <LinearGradient colors={['#14b8a6', '#22c55e']} style={styles.iconWrap}>
+              <TrendingUp size={18} color="#fff" />
+            </LinearGradient>
+            <View style={styles.sectionHeaderBody}>
+              <Text style={styles.sectionTitle}>Extra X Content</Text>
+              <Text style={styles.sectionSubtitle}>Unscored organic posts tracked separately from leaderboard submissions.</Text>
+            </View>
+          </View>
+          <View style={styles.metricsGrid}>
+            <MetricTile label="Extra X posts" value={formatInteger(extraContent.totalPosts)} />
+            <MetricTile label="Tracking now" value={formatInteger(extraContent.trackingPosts)} />
+            <MetricTile label="Extra impressions" value={formatInteger(extraContent.totalImpressions)} />
+            <MetricTile label="Extra reposts" value={formatInteger(extraContent.totalReposts)} />
+          </View>
+          <MetricList label="Extra X posts per region" values={extraContent.postsPerRegion} />
         </View>
 
         <View style={styles.sectionCard}>

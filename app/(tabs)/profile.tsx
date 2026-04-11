@@ -4,11 +4,11 @@ import Image from '@/components/StableImage';
 import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff, MapPin } from 'lucide-react-native';
+import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, ChevronLeft, X, Save, User as UserIcon, LogOut, Star, Mail, MessageCircle, Circle, CheckCircle, Lock, Eye, EyeOff, MapPin, Send, Clock3 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
-import { useApp, useUserSubmissions } from '@/contexts/AppContext';
+import { useApp, useUserExtraContent, useUserSubmissions } from '@/contexts/AppContext';
 import { AVATAR_PRESETS, normalizeAvatarUri } from '@/constants/avatarPresets';
 import { getBuildLabel } from '@/constants/buildInfo';
 
@@ -24,9 +24,10 @@ type TabType = 'submissions' | 'stats';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isRefreshing, refreshData } = useApp();
+  const { isRefreshing, refreshData, addExtraContent } = useApp();
   const { currentUser, logout, changePassword, updateProfile } = useAuth();
   const sortedSubmissions = useUserSubmissions(currentUser?.id);
+  const userExtraContent = useUserExtraContent(currentUser?.id);
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || '');
@@ -43,6 +44,9 @@ export default function ProfileScreen() {
   const [editFslEmail, setEditFslEmail] = useState(currentUser?.fslEmail || '');
   const [editAvatar, setEditAvatar] = useState(normalizeAvatarUri(currentUser?.avatar));
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [isExtraContentModalVisible, setIsExtraContentModalVisible] = useState(false);
+  const [extraPostUrl, setExtraPostUrl] = useState('');
+  const [isSubmittingExtraContent, setIsSubmittingExtraContent] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -263,6 +267,34 @@ export default function ProfileScreen() {
       Alert.alert('Error', result.error || 'Failed to change password');
     }
   }, [currentPassword, newPassword, confirmPassword, currentUser, changePassword]);
+
+  const openExtraContentModal = useCallback(() => {
+    setExtraPostUrl('');
+    setIsExtraContentModalVisible(true);
+  }, []);
+
+  const handleSubmitExtraContent = useCallback(async () => {
+    if (!currentUser) return;
+    if (!extraPostUrl.trim()) {
+      Alert.alert('Error', 'Paste the X post URL');
+      return;
+    }
+
+    setIsSubmittingExtraContent(true);
+    const result = await addExtraContent(extraPostUrl.trim(), currentUser.id);
+    setIsSubmittingExtraContent(false);
+
+    if (!result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Could not submit', result.error || 'Failed to submit extra X content');
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsExtraContentModalVisible(false);
+    setExtraPostUrl('');
+    Alert.alert('Submitted', 'This X post is now tracking impressions for 7 days.');
+  }, [addExtraContent, currentUser, extraPostUrl]);
 
   if (!currentUser) {
     return <LoadingScreen message="Loading profile..." />;
@@ -488,6 +520,79 @@ export default function ProfileScreen() {
 
         {activeTab === 'submissions' ? (
           <View style={styles.contentSection}>
+            <View style={styles.extraContentPanel}>
+              <View style={styles.extraContentHeader}>
+                <View style={styles.extraContentIcon}>
+                  <Send size={18} color={Colors.dark.primary} />
+                </View>
+                <View style={styles.extraContentCopy}>
+                  <Text style={styles.extraContentTitle}>Extra X Content</Text>
+                  <Text style={styles.extraContentSubtitle}>
+                    Track organic X posts. These do not count toward leaderboard points.
+                  </Text>
+                </View>
+              </View>
+              <PressableScale style={styles.extraContentButton} onPress={openExtraContentModal}>
+                <Text style={styles.extraContentButtonText}>Submit X Post</Text>
+              </PressableScale>
+            </View>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderTitle}>Extra X Content</Text>
+              <Text style={styles.sectionHeaderSubtitle}>{userExtraContent.length} total</Text>
+            </View>
+            {userExtraContent.length === 0 ? (
+              <View style={styles.extraEmptyBox}>
+                <Text style={styles.extraEmptyText}>No extra X posts submitted yet.</Text>
+              </View>
+            ) : (
+              userExtraContent.map((item) => {
+                const expiryDate = new Date(item.xTrackingExpiresAt);
+                const isTracking = item.status === 'tracking' && expiryDate.getTime() > Date.now();
+                return (
+                  <View key={item.id} style={styles.extraHistoryCard}>
+                    <View style={styles.extraHistoryHeader}>
+                      <PlatformBadge platform="twitter" />
+                      <View style={[styles.extraStatusPill, isTracking ? styles.extraStatusTracking : styles.extraStatusExpired]}>
+                        <Clock3 size={12} color={isTracking ? Colors.dark.success : Colors.dark.textMuted} />
+                        <Text style={[styles.extraStatusText, isTracking ? styles.extraStatusTextTracking : styles.extraStatusTextExpired]}>
+                          {isTracking ? 'Tracking' : item.status === 'error' ? 'Error' : 'Complete'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.extraHistoryTitle}>@{item.authorHandle}</Text>
+                    <View style={styles.metricsRow}>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{((item.metrics?.impressions || 0) / 1000).toFixed(1)}K</Text>
+                        <Text style={styles.metricLabel}>Views</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{item.metrics?.likes || 0}</Text>
+                        <Text style={styles.metricLabel}>Likes</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{item.metrics?.comments || 0}</Text>
+                        <Text style={styles.metricLabel}>Replies</Text>
+                      </View>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricValue}>{item.metrics?.shares || 0}</Text>
+                        <Text style={styles.metricLabel}>Reposts</Text>
+                      </View>
+                    </View>
+                    <View style={styles.submissionFooter}>
+                      <Text style={styles.submissionDate}>
+                        Submitted {new Date(item.submittedAt).toLocaleDateString()}
+                      </Text>
+                      <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(item.canonicalUrl)}>
+                        <ExternalLink size={14} color={Colors.dark.primary} />
+                        <Text style={styles.viewPostText}>View Post</Text>
+                      </PressableScale>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderTitle}>Your Submissions</Text>
               <Text style={styles.sectionHeaderSubtitle}>{sortedSubmissions.length} total</Text>
@@ -855,6 +960,70 @@ export default function ProfileScreen() {
 
             <PressableScale style={[styles.saveButton, isSavingProfile && styles.saveButtonDisabled]} onPress={handleSaveProfile} hapticType="medium" disabled={isSavingProfile}>
               <Text style={styles.saveButtonText}>Save Changes</Text>
+            </PressableScale>
+
+            <View style={styles.modalBottomPadding} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={isExtraContentModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsExtraContentModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalHeader}>
+            <PressableScale onPress={() => setIsExtraContentModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+            <Text style={styles.modalTitle}>Submit X Content</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.extraModalIntro}>
+              <View style={styles.extraModalIcon}>
+                <Send size={30} color={Colors.dark.primary} />
+              </View>
+              <Text style={styles.passwordHeaderTitle}>Extra X Content</Text>
+              <Text style={styles.passwordHeaderSubtitle}>
+                This tracks impressions for 7 days and does not add leaderboard points.
+              </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>X Post URL</Text>
+              <View style={styles.inputContainer}>
+                <PlatformBadge platform="twitter" size="small" />
+                <TextInput
+                  style={styles.input}
+                  value={extraPostUrl}
+                  onChangeText={setExtraPostUrl}
+                  placeholder="https://x.com/username/status/..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  testID="extra-x-url-input"
+                />
+              </View>
+              <Text style={styles.inputHint}>The post must come from your connected X handle and can only be submitted once globally.</Text>
+            </View>
+
+            <PressableScale
+              style={[styles.saveButton, isSubmittingExtraContent && styles.saveButtonDisabled]}
+              onPress={handleSubmitExtraContent}
+              hapticType="medium"
+              disabled={isSubmittingExtraContent}
+            >
+              <Text style={styles.saveButtonText}>
+                {isSubmittingExtraContent ? 'Submitting...' : 'Submit X Post'}
+              </Text>
             </PressableScale>
 
             <View style={styles.modalBottomPadding} />
@@ -1381,6 +1550,106 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.dark.primary,
   },
+  extraContentPanel: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '45',
+  },
+  extraContentHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+  },
+  extraContentIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  extraContentCopy: {
+    flex: 1,
+  },
+  extraContentTitle: {
+    color: Colors.dark.text,
+    fontSize: 16,
+    fontWeight: '700' as const,
+    marginBottom: 4,
+  },
+  extraContentSubtitle: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  extraContentButton: {
+    backgroundColor: Colors.dark.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  extraContentButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  extraEmptyBox: {
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 18,
+  },
+  extraEmptyText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+  },
+  extraHistoryCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  extraHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  extraHistoryTitle: {
+    color: Colors.dark.text,
+    fontSize: 16,
+    fontWeight: '700' as const,
+    marginBottom: 10,
+  },
+  extraStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  extraStatusTracking: {
+    backgroundColor: Colors.dark.success + '18',
+  },
+  extraStatusExpired: {
+    backgroundColor: Colors.dark.surfaceLight,
+  },
+  extraStatusText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+  },
+  extraStatusTextTracking: {
+    color: Colors.dark.success,
+  },
+  extraStatusTextExpired: {
+    color: Colors.dark.textMuted,
+  },
   statsGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -1596,6 +1865,19 @@ const styles = StyleSheet.create({
   passwordHeader: {
     alignItems: 'center',
     marginBottom: 32,
+  },
+  extraModalIntro: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  extraModalIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.dark.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   passwordIconLarge: {
     width: 72,
