@@ -91,10 +91,10 @@ export default function HomeScreen() {
     {
       enabled: backendEnabled,
       retry: false,
-      staleTime: Infinity,
-      refetchOnReconnect: false,
+      staleTime: 5 * 60 * 1000,
+      refetchOnReconnect: true,
       refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnMount: true,
     }
   );
 
@@ -186,8 +186,8 @@ export default function HomeScreen() {
   }, [currentUser]);
 
   const handleRefresh = useCallback(() => {
-    void Promise.all([refreshData(), refreshUsers()]);
-  }, [refreshData, refreshUsers]);
+    void Promise.all([refreshData(), refreshUsers(), newsQuery.refetch()]);
+  }, [refreshData, refreshUsers, newsQuery]);
 
   const openPostUrl = useCallback((url: string) => {
     const trimmed = url.trim();
