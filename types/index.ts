@@ -168,30 +168,6 @@ export interface Submission {
   flaggedReason?: string;
 }
 
-export type ExtraContentStatus = 'tracking' | 'expired' | 'error';
-
-export interface ExtraContentSubmission {
-  id: string;
-  seasonId?: string;
-  userId: string;
-  platform: 'twitter';
-  postUrl: string;
-  canonicalUrl: string;
-  tweetId: string;
-  authorHandle: string;
-  status: ExtraContentStatus;
-  submittedAt: string;
-  xTrackingExpiresAt: string;
-  xLastFetchedAt?: string;
-  lastError?: string;
-  metrics: {
-    impressions: number;
-    likes: number;
-    comments: number;
-    shares: number;
-  };
-}
-
 export interface AmbassadorPost {
   id: string;
   userId: string;

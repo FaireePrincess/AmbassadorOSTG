@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { Submission, SubmissionRating, Task, Asset, Event, AmbassadorPost, AssetFolder, ExtraContentSubmission } from '@/types';
+import { Submission, SubmissionRating, Task, Asset, Event, AmbassadorPost, AssetFolder } from '@/types';
 import { 
   ambassadorPosts as mockAmbassadorPosts,
   tasks as mockTasks,
@@ -20,7 +20,6 @@ const STORAGE_KEYS = {
   ASSET_FOLDERS: 'ambassador_asset_folders',
   EVENTS: 'ambassador_events',
   SUBMISSIONS: 'ambassador_submissions',
-  EXTRA_CONTENT: 'ambassador_extra_content',
 };
 
 const BACKEND_ENABLED = isBackendEnabled();
@@ -31,7 +30,6 @@ const BACKEND_CACHE_FALLBACKS = {
   ASSET_FOLDERS: [DEFAULT_ASSET_FOLDER] as AssetFolder[],
   SUBMISSIONS: [] as Submission[],
   FEED: [] as AmbassadorPost[],
-  EXTRA_CONTENT: [] as ExtraContentSubmission[],
 };
 
 async function loadStoredList<T>(key: string, fallback: T[]): Promise<T[]> {
@@ -66,16 +64,14 @@ export const [AppProvider, useApp] = createContextHook(() => {
   const [rsvpStates, setRsvpStates] = useState<Record<string, boolean>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [ambassadorFeed, setAmbassadorFeed] = useState<AmbassadorPost[]>([]);
-  const [extraContent, setExtraContent] = useState<ExtraContentSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const syncSubmissionViewsFromBackend = useCallback(async () => {
     if (!BACKEND_ENABLED) return;
-    const [backendSubmissions, backendTasks, backendFeed, backendExtraContent] = await Promise.all([
+    const [backendSubmissions, backendTasks, backendFeed] = await Promise.all([
       trpcClient.submissions.list.query().catch(() => null),
       trpcClient.tasks.list.query().catch(() => null),
       trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch(() => null),
-      trpcClient.extraContent.list.query().catch(() => null),
     ]);
 
     if (Array.isArray(backendSubmissions)) {
@@ -90,10 +86,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setAmbassadorFeed(backendFeed);
       void saveStoredList(STORAGE_KEYS.AMBASSADOR_FEED, backendFeed);
     }
-    if (Array.isArray(backendExtraContent)) {
-      setExtraContent(backendExtraContent);
-      void saveStoredList(STORAGE_KEYS.EXTRA_CONTENT, backendExtraContent);
-    }
   }, []);
 
   const fetchAllData = useCallback(async () => {
@@ -107,7 +99,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           cachedAssetFolders,
           cachedSubmissions,
           cachedFeed,
-          cachedExtraContent,
         ] = await Promise.all([
           loadStoredList(STORAGE_KEYS.TASKS, BACKEND_CACHE_FALLBACKS.TASKS),
           loadStoredList(STORAGE_KEYS.EVENTS, BACKEND_CACHE_FALLBACKS.EVENTS),
@@ -115,7 +106,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           loadStoredList(STORAGE_KEYS.ASSET_FOLDERS, BACKEND_CACHE_FALLBACKS.ASSET_FOLDERS),
           loadStoredList(STORAGE_KEYS.SUBMISSIONS, BACKEND_CACHE_FALLBACKS.SUBMISSIONS),
           loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, BACKEND_CACHE_FALLBACKS.FEED),
-          loadStoredList(STORAGE_KEYS.EXTRA_CONTENT, BACKEND_CACHE_FALLBACKS.EXTRA_CONTENT),
         ]);
 
         // Render can cold-start/fail transiently; hydrate from last-known-good cache first.
@@ -125,7 +115,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
         if (cachedAssetFolders.length > 0) setAssetFolders(ensureDefaultFolder(cachedAssetFolders));
         if (cachedSubmissions.length > 0) setSubmissions(cachedSubmissions);
         if (cachedFeed.length > 0) setAmbassadorFeed(cachedFeed);
-        if (cachedExtraContent.length > 0) setExtraContent(cachedExtraContent);
 
         const [
           backendTasks,
@@ -134,7 +123,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           backendAssetFolders,
           backendSubmissions,
           backendFeed,
-          backendExtraContent,
           storedRsvps,
         ] = await Promise.all([
           trpcClient.tasks.list.query().catch((e) => {
@@ -159,10 +147,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }),
           trpcClient.submissions.getAmbassadorFeed.query({ limit: 50 }).catch((e) => {
             console.log('[AppContext] Failed to fetch ambassador feed from backend:', e);
-            return null;
-          }),
-          trpcClient.extraContent.list.query().catch((e) => {
-            console.log('[AppContext] Failed to fetch extra content from backend:', e);
             return null;
           }),
           AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
@@ -194,10 +178,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           setAmbassadorFeed(backendFeed);
           void saveStoredList(STORAGE_KEYS.AMBASSADOR_FEED, backendFeed);
         }
-        if (Array.isArray(backendExtraContent)) {
-          setExtraContent(backendExtraContent);
-          void saveStoredList(STORAGE_KEYS.EXTRA_CONTENT, backendExtraContent);
-        }
 
         if (storedRsvps) {
           try {
@@ -228,7 +208,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
         storedAssetFolders,
         storedSubmissions,
         storedFeed,
-        storedExtraContent,
         storedRsvps,
       ] = await Promise.all([
         loadStoredList(STORAGE_KEYS.TASKS, mockTasks),
@@ -237,7 +216,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
         loadStoredList(STORAGE_KEYS.ASSET_FOLDERS, BACKEND_CACHE_FALLBACKS.ASSET_FOLDERS),
         loadStoredList(STORAGE_KEYS.SUBMISSIONS, mockSubmissions),
         loadStoredList(STORAGE_KEYS.AMBASSADOR_FEED, mockAmbassadorPosts),
-        loadStoredList(STORAGE_KEYS.EXTRA_CONTENT, [] as ExtraContentSubmission[]),
         AsyncStorage.getItem(STORAGE_KEYS.RSVPS).catch(() => null),
       ]);
 
@@ -247,7 +225,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setAssetFolders(ensureDefaultFolder(storedAssetFolders));
       setSubmissions(storedSubmissions);
       setAmbassadorFeed(storedFeed);
-      setExtraContent(storedExtraContent);
 
       if (storedRsvps) {
         try {
@@ -913,55 +890,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
   }, [syncSubmissionViewsFromBackend]);
 
-  const addExtraContent = useCallback(async (postUrl: string, userId: string) => {
-    try {
-      if (BACKEND_ENABLED) {
-        const result = await trpcClient.extraContent.create.mutate({ userId, postUrl });
-        const backendExtraContent = await trpcClient.extraContent.list.query().catch(() => null);
-        if (Array.isArray(backendExtraContent)) {
-          setExtraContent(backendExtraContent);
-          void saveStoredList(STORAGE_KEYS.EXTRA_CONTENT, backendExtraContent);
-        } else {
-          setExtraContent(prev => [result, ...prev]);
-        }
-        return { success: true, extraContent: result };
-      }
-
-      const match = postUrl.match(/(?:twitter\.com|x\.com)\/([A-Za-z0-9_]{1,15})\/status\/(\d{8,})/i);
-      if (!match?.[1] || !match?.[2]) {
-        return { success: false, error: 'Enter a valid X post URL' };
-      }
-      const tweetId = match[2];
-      if (extraContent.some((item) => item.tweetId === tweetId) || submissions.some((item) => item.postUrl.includes(tweetId) || item.links?.some((link) => link.url.includes(tweetId)))) {
-        return { success: false, error: 'This X post has already been submitted' };
-      }
-
-      const createdAt = Date.now();
-      const newItem: ExtraContentSubmission = {
-        id: `extra-x-${createdAt}`,
-        seasonId: undefined,
-        userId,
-        platform: 'twitter',
-        postUrl: postUrl.trim(),
-        canonicalUrl: `https://twitter.com/${match[1]}/status/${tweetId}`,
-        tweetId,
-        authorHandle: match[1],
-        status: 'tracking',
-        submittedAt: new Date(createdAt).toISOString(),
-        xTrackingExpiresAt: new Date(createdAt + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        metrics: { impressions: 0, likes: 0, comments: 0, shares: 0 },
-      };
-      const updated = [newItem, ...extraContent];
-      setExtraContent(updated);
-      void saveStoredList(STORAGE_KEYS.EXTRA_CONTENT, updated);
-      return { success: true, extraContent: newItem };
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Failed to submit extra X content';
-      console.log('[AppContext] Error adding extra content:', errMsg, error);
-      return { success: false, error: errMsg };
-    }
-  }, [extraContent, submissions]);
-
   const getUserSubmissionForTask = useCallback((userId: string, taskId: string) => {
     return submissions.find(s => s.userId === userId && s.taskId === taskId);
   }, [submissions]);
@@ -987,7 +915,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
     isRefreshing,
     isLoading,
     ambassadorFeed,
-    extraContent,
     addSubmission,
     updateSubmission,
     reviewSubmission,
@@ -1007,20 +934,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
     updateEvent,
     deleteEvent,
     deleteSubmission,
-    addExtraContent,
     getUserSubmissionForTask,
     hasUserSubmittedTask,
   };
 });
-
-export function useUserExtraContent(userId: string | undefined) {
-  const { extraContent } = useApp();
-  return [...extraContent]
-    .filter(item => item.userId === userId)
-    .sort((a, b) =>
-      new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-    );
-}
 
 export function useUserSubmissions(userId: string | undefined) {
   const { submissions } = useApp();

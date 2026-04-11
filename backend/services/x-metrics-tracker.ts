@@ -1,6 +1,6 @@
 import { db } from "@/backend/db";
 import { ensureActiveSeason, isSubmissionInSeason } from "@/backend/services/season";
-import type { ExtraContentSubmission, Submission, User } from "@/types";
+import type { Submission, User } from "@/types";
 import {
   computeXEngagementScoreFromImpressions,
   detectAnomaly,
@@ -12,7 +12,6 @@ import {
 } from "@/backend/services/performance";
 
 const SUBMISSIONS_COLLECTION = "submissions";
-const EXTRA_CONTENT_COLLECTION = "extra_content_submissions";
 const USERS_COLLECTION = "users";
 const MAX_BATCH = 10;
 const REQUEST_SPACING_MS = 3500;
@@ -26,7 +25,6 @@ type XMetricsLogEntry = {
   timestamp: string;
   region: string;
   submissionId: string;
-  source?: "submission" | "extra_content";
   userId: string;
   userName: string;
   postUrl: string;
@@ -159,12 +157,6 @@ function canTrackSubmission(submission: Submission): boolean {
   const expiry = getTrackingExpiry(submission);
   if (!expiry) return false;
   return isWithinTrackingWindow(expiry);
-}
-
-function canTrackExtraContent(item: ExtraContentSubmission): boolean {
-  if (item.status !== "tracking") return false;
-  if (!item.tweetId) return false;
-  return isWithinTrackingWindow(item.xTrackingExpiresAt);
 }
 
 function isCriticalError(message: string): boolean {
@@ -373,9 +365,8 @@ export async function runXMetricsTrackingBatch(
       return { processed: 0, remaining: 0, errors: 0, region: targetRegion };
     }
 
-    const [submissions, extraContent, users, currentSeason] = await Promise.all([
+    const [submissions, users, currentSeason] = await Promise.all([
       db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
-      db.getCollection<ExtraContentSubmission>(EXTRA_CONTENT_COLLECTION),
       db.getCollection<User>(USERS_COLLECTION),
       ensureActiveSeason(),
     ]);
@@ -417,20 +408,12 @@ export async function runXMetricsTrackingBatch(
         canTrackSubmission(submission) &&
         (regionByUserId.get(submission.userId) || "Unknown") === targetRegion
     );
-    const extraRegionEligible = extraContent.filter(
-      (item) =>
-        isSubmissionInSeason(item, currentSeason) &&
-        canTrackExtraContent(item) &&
-        (regionByUserId.get(item.userId) || "Unknown") === targetRegion
-    );
 
     const batchLimit = Math.max(1, Math.min(MAX_BATCH, options?.maxBatch ?? MAX_BATCH));
     const queue = regionEligible.slice(0, batchLimit);
-    const extraQueue = extraRegionEligible.slice(0, Math.max(0, batchLimit - queue.length));
-    remaining = Math.max(0, regionEligible.length + extraRegionEligible.length - queue.length - extraQueue.length);
+    remaining = Math.max(0, regionEligible.length - queue.length);
 
     const regionAvgMap = await getRegionAverageImpressionsMap(users, submissions);
-    let processedScoredSubmissions = 0;
 
     for (const submission of queue) {
       const twitterUrl = getSubmissionTwitterUrl(submission);
@@ -524,7 +507,6 @@ export async function runXMetricsTrackingBatch(
         }
 
         processed += 1;
-        processedScoredSubmissions += 1;
 
         pushLog({
           id: `xlog-${Date.now()}-${submission.id}-updated`,
@@ -534,7 +516,6 @@ export async function runXMetricsTrackingBatch(
           userId: submission.userId,
           userName,
           postUrl: submission.postUrl,
-          source: "submission",
           type: "updated",
           message: `Updated metrics for tweet ${tweetId}`,
           critical: false,
@@ -564,7 +545,6 @@ export async function runXMetricsTrackingBatch(
           userId: submission.userId,
           userName,
           postUrl: submission.postUrl,
-          source: "submission",
           type: "error",
           message,
           critical: isCriticalError(message),
@@ -575,85 +555,7 @@ export async function runXMetricsTrackingBatch(
       await new Promise((resolve) => setTimeout(resolve, REQUEST_SPACING_MS));
     }
 
-    for (const item of extraQueue) {
-      const user = userById.get(item.userId);
-      const userName = user?.name || "Unknown User";
-
-      try {
-        const xMetrics = await fetchTweetMetrics(item.tweetId);
-        const nextMetrics = {
-          impressions: xMetrics.impressions,
-          likes: xMetrics.likes,
-          comments: xMetrics.replies,
-          shares: xMetrics.retweets,
-        };
-
-        await db.update<ExtraContentSubmission>(EXTRA_CONTENT_COLLECTION, item.id, {
-          metrics: nextMetrics,
-          xImpressions: xMetrics.impressions,
-          xLikes: xMetrics.likes,
-          xReplies: xMetrics.replies,
-          xReposts: xMetrics.retweets,
-          xLastFetchedAt: new Date().toISOString(),
-          status: isWithinTrackingWindow(item.xTrackingExpiresAt) ? "tracking" : "expired",
-          lastError: undefined,
-        } as Partial<ExtraContentSubmission>);
-
-        processed += 1;
-
-        pushLog({
-          id: `xlog-${Date.now()}-${item.id}-updated`,
-          timestamp: new Date().toISOString(),
-          region: targetRegion,
-          submissionId: item.id,
-          source: "extra_content",
-          userId: item.userId,
-          userName,
-          postUrl: item.canonicalUrl,
-          type: "updated",
-          message: `Updated extra X content metrics for tweet ${item.tweetId}`,
-          critical: false,
-        });
-      } catch (error) {
-        errors += 1;
-        const message = error instanceof Error ? error.message : String(error);
-        if (message.includes("X API error 429") || message.includes("X user API error 429")) {
-          hitRateLimit = true;
-          rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-          xMetricsStatus.rateLimitedUntil = new Date(rateLimitedUntil).toISOString();
-          clearRegionQueue();
-          nextCycleAt = rateLimitedUntil;
-          if (scheduleTimer) {
-            clearTimeout(scheduleTimer);
-          }
-          scheduleTimer = setTimeout(() => {
-            void startDailyRegionQueue("rate-limit-restart");
-          }, Math.max(1, rateLimitedUntil - Date.now()));
-          updateNextScheduledRunAt();
-        }
-        await db.update<ExtraContentSubmission>(EXTRA_CONTENT_COLLECTION, item.id, {
-          lastError: message,
-          status: isWithinTrackingWindow(item.xTrackingExpiresAt) ? "tracking" : "error",
-        } as Partial<ExtraContentSubmission>);
-        pushLog({
-          id: `xlog-${Date.now()}-${item.id}-error`,
-          timestamp: new Date().toISOString(),
-          region: targetRegion,
-          submissionId: item.id,
-          source: "extra_content",
-          userId: item.userId,
-          userName,
-          postUrl: item.canonicalUrl,
-          type: "error",
-          message,
-          critical: isCriticalError(message),
-        });
-        if (hitRateLimit) break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, REQUEST_SPACING_MS));
-    }
-
-    if (processedScoredSubmissions > 0) {
+    if (processed > 0) {
       await recomputeAllUserPerformance();
     }
 

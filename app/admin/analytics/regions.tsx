@@ -99,7 +99,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 export default function AdminRegionalAnalyticsScreen() {
   const router = useRouter();
   const { users, isLoading: authLoading, currentUser } = useAuth();
-  const { submissions, extraContent, isLoading: appLoading } = useApp();
+  const { submissions, isLoading: appLoading } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedWindow, setSelectedWindow] = useState<WindowKey>('30d');
   const [customStartInput, setCustomStartInput] = useState('');
@@ -152,21 +152,6 @@ export default function AdminRegionalAnalyticsScreen() {
     }
     return true;
   });
-  const scopedExtraContent = extraContent.filter((item) => {
-    const region = regionByUserId.get(item.userId) || 'Unknown';
-    if (selectedRegion !== 'All Regions' && region !== selectedRegion) return false;
-
-    if (!startDate) return true;
-    const submittedAt = new Date(item.submittedAt);
-    if (Number.isNaN(submittedAt.getTime())) return false;
-    if (submittedAt < startDate) return false;
-    if (endDate) {
-      const endOfDay = new Date(endDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      if (submittedAt > endOfDay) return false;
-    }
-    return true;
-  });
 
   const totals = approvedSubmissions.reduce(
     (acc, submission) => {
@@ -174,16 +159,6 @@ export default function AdminRegionalAnalyticsScreen() {
       acc.likes += submission.metrics?.likes || 0;
       acc.retweets += submission.metrics?.shares || 0;
       acc.posts += 1;
-      return acc;
-    },
-    { impressions: 0, likes: 0, retweets: 0, posts: 0 }
-  );
-  const extraTotals = scopedExtraContent.reduce(
-    (acc, item) => {
-      acc.posts += 1;
-      acc.impressions += item.metrics?.impressions || 0;
-      acc.likes += item.metrics?.likes || 0;
-      acc.retweets += item.metrics?.shares || 0;
       return acc;
     },
     { impressions: 0, likes: 0, retweets: 0, posts: 0 }
@@ -206,25 +181,8 @@ export default function AdminRegionalAnalyticsScreen() {
     entry.retweets += submission.metrics?.shares || 0;
     byUser.set(submission.userId, entry);
   }
-  const byUserExtra = new Map<string, { posts: number; impressions: number; likes: number; retweets: number }>();
-  for (const item of scopedExtraContent) {
-    const entry = byUserExtra.get(item.userId) || { posts: 0, impressions: 0, likes: 0, retweets: 0 };
-    entry.posts += 1;
-    entry.impressions += item.metrics?.impressions || 0;
-    entry.likes += item.metrics?.likes || 0;
-    entry.retweets += item.metrics?.shares || 0;
-    byUserExtra.set(item.userId, entry);
-  }
 
   const topAmbassadors = [...byUser.entries()]
-    .map(([userId, metrics]) => ({
-      userId,
-      name: nameByUserId.get(userId) || 'Unknown',
-      ...metrics,
-    }))
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 8);
-  const topExtraContent = [...byUserExtra.entries()]
     .map(([userId, metrics]) => ({
       userId,
       name: nameByUserId.get(userId) || 'Unknown',
@@ -252,6 +210,7 @@ export default function AdminRegionalAnalyticsScreen() {
     if (!dayMap.has(key)) continue;
     dayMap.set(key, (dayMap.get(key) || 0) + (submission.metrics?.impressions || 0));
   }
+
   const trendValues = [...dayMap.values()];
 
   return (
@@ -318,41 +277,6 @@ export default function AdminRegionalAnalyticsScreen() {
           <MetricCard label="Followers" value={formatValue(totalFollowers)} />
           <MetricCard label="Avg Imp / Post" value={formatValue(avgImpressionsPerPost)} />
           <MetricCard label="Engagement Rate" value={`${engagementRate.toFixed(2)}%`} />
-        </View>
-
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Extra X Content</Text>
-            <Text style={styles.panelMeta}>Unscored reach tracking</Text>
-          </View>
-          <View style={styles.metricsGrid}>
-            <MetricCard label="Extra Posts" value={formatValue(extraTotals.posts)} />
-            <MetricCard label="Extra Impressions" value={formatValue(extraTotals.impressions)} />
-            <MetricCard label="Extra Likes" value={formatValue(extraTotals.likes)} />
-            <MetricCard label="Extra RT" value={formatValue(extraTotals.retweets)} />
-          </View>
-          {topExtraContent.length === 0 ? (
-            <Text style={styles.emptyText}>No extra X content yet for this view.</Text>
-          ) : (
-            <View style={styles.tableWrap}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeadText, styles.nameCol]}>Ambassador</Text>
-                <Text style={styles.tableHeadText}>Posts</Text>
-                <Text style={styles.tableHeadText}>Imp.</Text>
-                <Text style={styles.tableHeadText}>Likes</Text>
-                <Text style={styles.tableHeadText}>RT</Text>
-              </View>
-              {topExtraContent.map((ambassador) => (
-                <View key={ambassador.userId} style={styles.tableRow}>
-                  <Text style={[styles.tableCellText, styles.nameCol]} numberOfLines={1}>{ambassador.name}</Text>
-                  <Text style={styles.tableCellText}>{ambassador.posts}</Text>
-                  <Text style={styles.tableCellText}>{formatCompact(ambassador.impressions)}</Text>
-                  <Text style={styles.tableCellText}>{formatCompact(ambassador.likes)}</Text>
-                  <Text style={styles.tableCellText}>{formatCompact(ambassador.retweets)}</Text>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={styles.panel}>
