@@ -25,9 +25,14 @@ async function ensureAdmin(adminUserId: string) {
 
 export const newsRouter = createTRPCRouter({
   getCurrent: publicProcedure.query(async () => {
-    const item = await db.getById<HomeNews>(NEWS_COLLECTION, NEWS_ID);
-    if (!item) return null;
-    return item;
+    try {
+      const item = await db.getById<HomeNews>(NEWS_COLLECTION, NEWS_ID);
+      if (!item) return null;
+      return item;
+    } catch (error) {
+      console.log("[News] Failed to fetch current home news:", error instanceof Error ? error.message : error);
+      return null;
+    }
   }),
 
   upsert: publicProcedure
