@@ -46,6 +46,7 @@ function getDbConfig() {
 
 let dbConfig: { endpoint?: string; namespace?: string; token?: string } | null = null;
 let dbConfigAttempts = 0;
+let fallbackStorageWarningLogged = false;
 
 function getConfig() {
   if (!dbConfig || (!dbConfig.endpoint && dbConfigAttempts < 5)) {
@@ -274,7 +275,10 @@ async function makeRequest(path: string, method: string, body?: unknown) {
   const config = getConfig();
   
   if (!config.endpoint || !config.token) {
-    console.log("[DB] WARN: Missing database configuration (endpoint:", config.endpoint ? 'SET' : 'MISSING', "token:", config.token ? 'SET' : 'MISSING', "), using memory fallback");
+    if (!fallbackStorageWarningLogged) {
+      fallbackStorageWarningLogged = true;
+      console.log("[DB] Remote DB not configured; using file-backed storage when available, otherwise memory fallback");
+    }
     return null;
   }
 

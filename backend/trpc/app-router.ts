@@ -9,6 +9,7 @@ import { seasonsRouter } from "./routes/seasons";
 import { adminRouter } from "./routes/admin";
 import { pollsRouter } from "./routes/polls";
 import { newsRouter } from "./routes/news";
+import { extraContentRouter } from "./routes/extra-content";
 
 export const appRouter = createTRPCRouter({
   tasks: tasksRouter,
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   admin: adminRouter,
   polls: pollsRouter,
   news: newsRouter,
+  extraContent: extraContentRouter,
 });
 
 export type AppRouter = typeof appRouter;

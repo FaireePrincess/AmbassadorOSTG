@@ -65,7 +65,7 @@ function parseTs(value?: string): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
-export function isSubmissionInSeason(submission: Submission, season: Season): boolean {
+export function isSubmissionInSeason(submission: Pick<Submission, "seasonId" | "submittedAt">, season: Season): boolean {
   if (submission.seasonId) {
     return submission.seasonId === season.id;
   }

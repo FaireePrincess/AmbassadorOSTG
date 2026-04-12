@@ -1,5 +1,6 @@
 export type Platform = 'twitter' | 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'telegram';
 export type SubmissionStatus = 'pending' | 'approved' | 'needs_edits' | 'rejected';
+export type ExtraContentStatus = 'tracking' | 'expired' | 'error';
 export type TaskStatus = 'active' | 'upcoming' | 'completed';
 export type EventType = 'irl' | 'online';
 export type AssetType = 'image' | 'video' | 'document' | 'template';
@@ -166,6 +167,32 @@ export interface Submission {
   xTrackingExpiresAt?: string;
   flaggedForReview?: boolean;
   flaggedReason?: string;
+}
+
+export interface ExtraContentSubmission {
+  id: string;
+  seasonId?: string;
+  userId: string;
+  platform: 'twitter';
+  postUrl: string;
+  canonicalUrl: string;
+  tweetId: string;
+  authorHandle: string;
+  status: ExtraContentStatus;
+  submittedAt: string;
+  xTrackingExpiresAt: string;
+  metrics: {
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+  };
+  xImpressions?: number;
+  xLikes?: number;
+  xReplies?: number;
+  xReposts?: number;
+  xLastFetchedAt?: string;
+  lastError?: string;
 }
 
 export interface AmbassadorPost {

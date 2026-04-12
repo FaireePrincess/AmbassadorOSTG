@@ -131,20 +131,6 @@ function sanitizeUser(user: User): User {
   };
 }
 
-async function sanitizeAndPersistUsers(users: User[]): Promise<User[]> {
-  const normalized = users.map(sanitizeUser);
-  const updates: Promise<unknown>[] = [];
-  for (let i = 0; i < users.length; i++) {
-    if (users[i].avatar !== normalized[i].avatar) {
-      updates.push(db.update<User>(COLLECTION, users[i].id, { avatar: normalized[i].avatar }));
-    }
-  }
-  if (updates.length > 0) {
-    await Promise.all(updates);
-  }
-  return normalized;
-}
-
 async function getUsers(forceRefresh = false): Promise<User[]> {
   if (!initialized || forceRefresh) {
     const dbUsers = await db.getCollection<User>(COLLECTION);
@@ -153,12 +139,12 @@ async function getUsers(forceRefresh = false): Promise<User[]> {
       for (const user of initialUsers) {
         await db.create(COLLECTION, sanitizeUser(user));
       }
-      usersCache = await sanitizeAndPersistUsers(initialUsers);
+      usersCache = initialUsers.map(sanitizeUser);
     } else if (dbUsers.length === 0 && !initialized) {
       console.log("[Users] Collection empty, seeding disabled");
       usersCache = [];
     } else {
-      usersCache = await sanitizeAndPersistUsers(dbUsers);
+      usersCache = dbUsers.map(sanitizeUser);
     }
     initialized = true;
   }
