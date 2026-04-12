@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, RefreshControl, Modal, Dimensions, Linking } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -56,6 +56,7 @@ export default function AssetsScreen() {
     assetFolders,
     isRefreshing,
     refreshData,
+    refreshAssets,
     addAsset,
     updateAsset,
     deleteAsset,
@@ -88,6 +89,10 @@ export default function AssetsScreen() {
     size: '',
   });
 
+  useEffect(() => {
+    void refreshAssets();
+  }, [refreshAssets]);
+
   const getAssetsForFolder = useCallback((folderKey: FolderKey) => {
     return assets.filter(a => (a.folderId || DEFAULT_ASSET_FOLDER_ID) === folderKey);
   }, [assets]);
@@ -117,8 +122,8 @@ export default function AssetsScreen() {
   }, [activeFolder, searchQuery, getAssetsForFolder]);
 
   const handleRefresh = useCallback(() => {
-    refreshData();
-  }, [refreshData]);
+    void Promise.all([refreshData(), refreshAssets()]);
+  }, [refreshAssets, refreshData]);
 
   const handleDownload = useCallback(async (asset: Asset) => {
     const rawUrl = (asset.url || '').trim();

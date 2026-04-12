@@ -130,8 +130,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
         const [
           backendTasks,
           backendEvents,
-          backendAssets,
-          backendAssetFolders,
           backendSubmissions,
           backendFeed,
           backendExtraContent,
@@ -143,14 +141,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           }),
           trpcClient.events.list.query().catch((e) => {
             console.log('[AppContext] Failed to fetch events from backend:', e);
-            return null;
-          }),
-          trpcClient.assets.list.query().catch((e) => {
-            console.log('[AppContext] Failed to fetch assets from backend:', e);
-            return null;
-          }),
-          trpcClient.assets.listFolders.query().catch((e) => {
-            console.log('[AppContext] Failed to fetch asset folders from backend:', e);
             return null;
           }),
           trpcClient.submissions.list.query().catch((e) => {
@@ -175,16 +165,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
         if (Array.isArray(backendEvents)) {
           setEvents(backendEvents);
           void saveStoredList(STORAGE_KEYS.EVENTS, backendEvents);
-        }
-        if (Array.isArray(backendAssets)) {
-          const normalizedAssets = backendAssets.map(asset => ({ ...asset, folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID }));
-          setAssets(normalizedAssets);
-          void saveStoredList(STORAGE_KEYS.ASSETS, normalizedAssets);
-        }
-        if (Array.isArray(backendAssetFolders)) {
-          const normalizedFolders = ensureDefaultFolder(backendAssetFolders);
-          setAssetFolders(normalizedFolders);
-          void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, normalizedFolders);
         }
         if (Array.isArray(backendSubmissions)) {
           setSubmissions(backendSubmissions);
@@ -213,8 +193,6 @@ export const [AppProvider, useApp] = createContextHook(() => {
           Array.isArray(backendTasks) ? backendTasks.length : 'unchanged',
           'Events:',
           Array.isArray(backendEvents) ? backendEvents.length : 'unchanged',
-          'Assets:',
-          Array.isArray(backendAssets) ? backendAssets.length : 'unchanged',
           'Submissions:',
           Array.isArray(backendSubmissions) ? backendSubmissions.length : 'unchanged'
         );
@@ -290,6 +268,32 @@ export const [AppProvider, useApp] = createContextHook(() => {
       setIsRefreshing(false);
     }
   }, [fetchAllData]);
+
+  const refreshAssets = useCallback(async () => {
+    if (!BACKEND_ENABLED) return;
+
+    const [backendAssets, backendAssetFolders] = await Promise.all([
+      trpcClient.assets.list.query().catch((e) => {
+        console.log('[AppContext] Failed to fetch assets from backend:', e);
+        return null;
+      }),
+      trpcClient.assets.listFolders.query().catch((e) => {
+        console.log('[AppContext] Failed to fetch asset folders from backend:', e);
+        return null;
+      }),
+    ]);
+
+    if (Array.isArray(backendAssets)) {
+      const normalizedAssets = backendAssets.map(asset => ({ ...asset, folderId: asset.folderId || DEFAULT_ASSET_FOLDER_ID }));
+      setAssets(normalizedAssets);
+      void saveStoredList(STORAGE_KEYS.ASSETS, normalizedAssets);
+    }
+    if (Array.isArray(backendAssetFolders)) {
+      const normalizedFolders = ensureDefaultFolder(backendAssetFolders);
+      setAssetFolders(normalizedFolders);
+      void saveStoredList(STORAGE_KEYS.ASSET_FOLDERS, normalizedFolders);
+    }
+  }, []);
 
   const addSubmission = useCallback(async (submission: Submission, userId: string) => {
     try {
@@ -993,6 +997,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
     reviewSubmission,
     updateRsvp,
     refreshData,
+    refreshAssets,
     addTask,
     updateTask,
     deleteTask,

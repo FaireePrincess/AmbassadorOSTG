@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -16,7 +16,7 @@ import { Platform as PlatformType, Submission } from '@/types';
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { addSubmission, tasks, assets, hasUserSubmittedTask } = useApp();
+  const { addSubmission, tasks, assets, hasUserSubmittedTask, refreshAssets } = useApp();
   const { currentUser, requiresSocialSetup } = useAuth();
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformType[]>([]);
@@ -39,6 +39,12 @@ export default function TaskDetailScreen() {
   );
   const blockedForSocialSetup =
     currentUser?.role === 'ambassador' && (requiresSocialSetup || !hasSocialAccount);
+
+  useEffect(() => {
+    if (task?.assetIds?.length || task?.campaignId) {
+      void refreshAssets();
+    }
+  }, [refreshAssets, task?.assetIds?.length, task?.campaignId]);
 
   const handleSubmit = useCallback(async () => {
     if (!task) return;
