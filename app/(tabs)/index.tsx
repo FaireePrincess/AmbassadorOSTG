@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert, Linking, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform as RNPlatform } from 'react-native';
 import Image from '@/components/StableImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Award } from 'lucide-react-native';
+import { ChevronRight, Award, Save, X } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { ambassadorPosts as mockPosts } from '@/mocks/data';
-import { useApp, useUserSubmissions } from '@/contexts/AppContext';
+import { useApp, useUserExtraContent, useUserSubmissions } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBackendEnabled } from '@/lib/trpc';
 import { trpc } from '@/lib/trpc';
@@ -83,9 +83,10 @@ function getTaskProgressTone(progress: number, totalActiveTasks: number) {
 export default function HomeScreen() {
   const router = useRouter();
   const { currentUser, users, refreshUsers } = useAuth();
-  const { isRefreshing, refreshData, tasks, ambassadorFeed } = useApp();
+  const { isRefreshing, refreshData, tasks, ambassadorFeed, addExtraContent } = useApp();
   const backendEnabled = isBackendEnabled();
   const userSubmissions = useUserSubmissions(currentUser?.id);
+  const sortedExtraContent = useUserExtraContent(currentUser?.id);
   const newsQuery = trpc.news.getCurrent.useQuery(
     undefined,
     {
@@ -133,6 +134,9 @@ export default function HomeScreen() {
   const allPosts = feedPosts.slice(0, 20);
 
   const [showFeedExpanded, setShowFeedExpanded] = useState(false);
+  const [isExtraContentModalVisible, setIsExtraContentModalVisible] = useState(false);
+  const [extraContentUrl, setExtraContentUrl] = useState('');
+  const [isSubmittingExtraContent, setIsSubmittingExtraContent] = useState(false);
 
   useEffect(() => {
     void refreshUsers();
@@ -167,6 +171,7 @@ export default function HomeScreen() {
     () => (showFeedExpanded ? allPosts : topPosts),
     [showFeedExpanded, allPosts, topPosts]
   );
+  const extraContentPreview = useMemo(() => sortedExtraContent.slice(0, 2), [sortedExtraContent]);
 
   const userRank = useMemo(() => {
     if (!currentUser) return 0;
@@ -215,6 +220,27 @@ export default function HomeScreen() {
       Alert.alert('Error', 'Could not open link');
     });
   }, []);
+
+  const handleSubmitExtraContent = useCallback(async () => {
+    if (!currentUser) return;
+    if (!extraContentUrl.trim()) {
+      Alert.alert('Error', 'Please enter an X post URL');
+      return;
+    }
+
+    setIsSubmittingExtraContent(true);
+    const result = await addExtraContent(extraContentUrl.trim(), currentUser.id);
+    setIsSubmittingExtraContent(false);
+
+    if (!result.success) {
+      Alert.alert('Error', result.error || 'Could not submit extra X content');
+      return;
+    }
+
+    setExtraContentUrl('');
+    setIsExtraContentModalVisible(false);
+    Alert.alert('Submitted', 'Extra X content is being tracked separately from leaderboard scoring.');
+  }, [addExtraContent, currentUser, extraContentUrl]);
 
   if (!currentUser) {
     return <LoadingScreen message="Loading dashboard..." />;
@@ -338,6 +364,63 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <View style={styles.extraContentSection}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Extra X Content</Text>
+              <Text style={styles.extraContentSubtitle}>{sortedExtraContent.length} tracked separately</Text>
+            </View>
+            <PressableScale
+              style={styles.extraContentAddBtn}
+              onPress={() => setIsExtraContentModalVisible(true)}
+            >
+              <Text style={styles.extraContentAddText}>Add Post</Text>
+            </PressableScale>
+          </View>
+          <Text style={styles.extraContentNote}>
+            Submit X posts outside assigned tasks. Impressions are tracked for reporting and stay separate from points and rank.
+          </Text>
+          {extraContentPreview.length > 0 ? (
+            <View style={styles.extraContentList}>
+              {extraContentPreview.map((item) => (
+                <View key={item.id} style={styles.extraContentItem}>
+                  <View style={styles.extraContentItemHeader}>
+                    <PlatformBadge platform="twitter" />
+                    <Text style={styles.extraContentStatus}>{item.status}</Text>
+                  </View>
+                  <Text style={styles.extraContentUrl} numberOfLines={1}>{item.canonicalUrl}</Text>
+                  <View style={styles.extraContentMetrics}>
+                    <View style={styles.extraContentMetricItem}>
+                      <Text style={styles.extraContentMetricValue}>{(item.metrics.impressions / 1000).toFixed(1)}K</Text>
+                      <Text style={styles.extraContentMetricLabel}>Views</Text>
+                    </View>
+                    <View style={styles.extraContentMetricItem}>
+                      <Text style={styles.extraContentMetricValue}>{item.metrics.likes}</Text>
+                      <Text style={styles.extraContentMetricLabel}>Likes</Text>
+                    </View>
+                    <View style={styles.extraContentMetricItem}>
+                      <Text style={styles.extraContentMetricValue}>{item.metrics.comments}</Text>
+                      <Text style={styles.extraContentMetricLabel}>Comments</Text>
+                    </View>
+                    <View style={styles.extraContentMetricItem}>
+                      <Text style={styles.extraContentMetricValue}>{item.metrics.shares}</Text>
+                      <Text style={styles.extraContentMetricLabel}>Shares</Text>
+                    </View>
+                  </View>
+                  <View style={styles.extraContentFooter}>
+                    <Text style={styles.extraContentDate}>
+                      Submitted {new Date(item.submittedAt).toLocaleDateString()}
+                    </Text>
+                    <PressableScale style={styles.extraContentViewBtn} onPress={() => openPostUrl(item.canonicalUrl)}>
+                      <Text style={styles.extraContentViewText}>View Post</Text>
+                    </PressableScale>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ambassador Feed</Text>
@@ -377,6 +460,49 @@ export default function HomeScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      <Modal
+        visible={isExtraContentModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsExtraContentModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Extra X Content</Text>
+            <PressableScale onPress={() => setIsExtraContentModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+          </View>
+          <KeyboardAvoidingView behavior={RNPlatform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.extraContentModalText}>
+                Submit an X post that is not tied to a task. It will track impressions separately and will not affect points or rank.
+              </Text>
+              <Text style={styles.inputLabel}>X Post URL</Text>
+              <TextInput
+                style={styles.extraContentTextInput}
+                value={extraContentUrl}
+                onChangeText={setExtraContentUrl}
+                placeholder="https://x.com/yourhandle/status/..."
+                placeholderTextColor={Colors.dark.textMuted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <PressableScale
+                style={[styles.saveButton, isSubmittingExtraContent && styles.saveButtonDisabled]}
+                onPress={handleSubmitExtraContent}
+                disabled={isSubmittingExtraContent}
+              >
+                <Save size={20} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {isSubmittingExtraContent ? 'Submitting...' : 'Submit Extra Content'}
+                </Text>
+              </PressableScale>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -556,6 +682,105 @@ const styles = StyleSheet.create({
     color: Colors.dark.primary,
     fontSize: Typography.sizes.caption,
     fontWeight: Typography.weights.semibold,
+  },
+  extraContentSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  extraContentSubtitle: {
+    color: Colors.dark.textMuted,
+    fontSize: Typography.sizes.caption,
+    marginTop: 2,
+  },
+  extraContentAddBtn: {
+    backgroundColor: Colors.dark.primary + '18',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  extraContentAddText: {
+    color: Colors.dark.primary,
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  extraContentNote: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  extraContentList: {
+    gap: 12,
+  },
+  extraContentItem: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 12,
+  },
+  extraContentItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  extraContentStatus: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    textTransform: 'capitalize',
+  },
+  extraContentUrl: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  extraContentMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.dark.surfaceLight,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  extraContentMetricItem: {
+    alignItems: 'center',
+  },
+  extraContentMetricValue: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.dark.text,
+  },
+  extraContentMetricLabel: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  extraContentFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  extraContentDate: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  extraContentViewBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary + '70',
+    backgroundColor: Colors.dark.primary + '18',
+  },
+  extraContentViewText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   section: {
     paddingHorizontal: 20,
@@ -821,6 +1046,45 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 20,
+  },
+  extraContentModalText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 13,
+    color: Colors.dark.textSecondary,
+    marginBottom: 8,
+  },
+  extraContentTextInput: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    color: Colors.dark.text,
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  saveButton: {
+    backgroundColor: Colors.dark.primary,
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 24,
+  },
+  saveButtonText: {
+    fontSize: Typography.sizes.title,
+    fontWeight: Typography.weights.bold,
+    color: '#FFF',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   modalBody: {
     paddingHorizontal: 20,
