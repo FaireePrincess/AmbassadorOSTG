@@ -1,9 +1,10 @@
 import { db } from "@/backend/db";
 import { computeEngagementScore, scoreBuckets } from "@/backend/services/performance";
 import { ensureActiveSeason, isSubmissionInSeason, isTaskInSeason, listSeasons } from "@/backend/services/season";
-import type { AmbassadorPost, Season, Submission, Task, User } from "@/types";
+import type { AmbassadorPost, ExtraContentSubmission, Season, Submission, Task, User } from "@/types";
 
 const SUBMISSIONS_COLLECTION = "submissions";
+const EXTRA_CONTENT_COLLECTION = "extra_content_submissions";
 const USERS_COLLECTION = "users";
 const POSTS_COLLECTION = "ambassador_posts";
 const TASKS_COLLECTION = "tasks";
@@ -220,13 +221,15 @@ export function computeSeasonTaskCompletionRate(args: {
 }
 
 export async function getProgramAnalytics(seasonId?: string) {
-  const [{ season, isCurrentSeason }, submissions, users, tasks] = await Promise.all([
+  const [{ season, isCurrentSeason }, submissions, extraContent, users, tasks] = await Promise.all([
     resolveSeason(seasonId),
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
+    db.getCollection<ExtraContentSubmission>(EXTRA_CONTENT_COLLECTION),
     db.getCollection<User>(USERS_COLLECTION),
     db.getCollection<Task>(TASKS_COLLECTION),
   ]);
   const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, season));
+  const seasonExtraContent = extraContent.filter((item) => isSubmissionInSeason(item, season));
   const seasonTasks = tasks.filter((task) => isTaskInSeason(task, season));
   const completionScopeTasks = getCompletionRateTaskScope(season, seasonTasks);
 
@@ -266,6 +269,12 @@ export async function getProgramAnalytics(seasonId?: string) {
     acc[region] = (acc[region] || 0) + 1;
     return acc;
   }, {});
+  const extraContentPerRegion = seasonExtraContent.reduce<Record<string, number>>((acc, item) => {
+    const region = regionByUserId.get(item.userId) || "Unknown";
+    acc[region] = (acc[region] || 0) + 1;
+    return acc;
+  }, {});
+  const extraContentImpressions = seasonExtraContent.reduce((sum, item) => sum + (item.metrics?.impressions || 0), 0);
 
   const engagementAverages = approved.reduce(
     (acc, item) => {
@@ -444,6 +453,12 @@ export async function getProgramAnalytics(seasonId?: string) {
       averageImpressionsPerRegion,
       distributionCurve: engagementCurve,
     },
+    extraContent: {
+      totalSubmissions: seasonExtraContent.length,
+      totalImpressions: extraContentImpressions,
+      averageImpressionsPerSubmission: seasonExtraContent.length > 0 ? extraContentImpressions / seasonExtraContent.length : 0,
+      submissionsPerRegion: extraContentPerRegion,
+    },
     speed: {
       averageReviewTimeHours,
       averageTimeToSubmissionHours,
@@ -454,14 +469,24 @@ export async function getProgramAnalytics(seasonId?: string) {
 }
 
 export async function getRegionalAnalytics() {
-  const [submissions, users, currentSeason] = await Promise.all([
+  const [submissions, extraContent, users, currentSeason] = await Promise.all([
     db.getCollection<Submission>(SUBMISSIONS_COLLECTION),
+    db.getCollection<ExtraContentSubmission>(EXTRA_CONTENT_COLLECTION),
     db.getCollection<User>(USERS_COLLECTION),
     ensureActiveSeason(),
   ]);
   const seasonSubmissions = submissions.filter((submission) => isSubmissionInSeason(submission, currentSeason));
+  const seasonExtraContent = extraContent.filter((item) => isSubmissionInSeason(item, currentSeason));
 
   const regionByUser = new Map(users.map((u) => [u.id, u.region || "Unknown"]));
+  const extraByRegion = seasonExtraContent.reduce<Map<string, { submissions: number; impressions: number }>>((map, item) => {
+    const region = regionByUser.get(item.userId) || "Unknown";
+    const entry = map.get(region) || { submissions: 0, impressions: 0 };
+    entry.submissions += 1;
+    entry.impressions += item.metrics?.impressions || 0;
+    map.set(region, entry);
+    return map;
+  }, new Map());
   const grouped = new Map<string, {
     submissions: number;
     approved: number;
@@ -510,6 +535,10 @@ export async function getRegionalAnalytics() {
           likes: value.likes / approvedCount,
           comments: value.comments / approvedCount,
           shares: value.shares / approvedCount,
+        },
+        extraContent: {
+          submissions: extraByRegion.get(region)?.submissions || 0,
+          impressions: extraByRegion.get(region)?.impressions || 0,
         },
       };
     })

@@ -70,6 +70,12 @@ type AnalyticsResponse = {
     averageImpressionsPerRegion: Record<string, number>;
     distributionCurve: Record<string, number>;
   };
+  extraContent?: {
+    totalSubmissions: number;
+    totalImpressions: number;
+    averageImpressionsPerSubmission: number;
+    submissionsPerRegion: Record<string, number>;
+  };
   speed: {
     averageReviewTimeHours: number;
     averageTimeToSubmissionHours: number;
@@ -128,6 +134,7 @@ export default function AdminAnalyticsScreen() {
   const volume = data.volume;
   const quality = data.quality;
   const engagement = data.engagement;
+  const extraContent = data.extraContent;
   const speed = data.speed;
   const campaigns = data.campaigns.slice(0, 10);
 
@@ -151,6 +158,26 @@ export default function AdminAnalyticsScreen() {
           <Text style={styles.title}>Program Analytics</Text>
           <Text style={styles.subtitle}>Season-aware reporting with campaign results and historical review.</Text>
         </View>
+
+        {extraContent ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <LinearGradient colors={['#10b981', '#14b8a6']} style={styles.iconWrap}>
+                <TrendingUp size={18} color="#fff" />
+              </LinearGradient>
+              <View style={styles.sectionHeaderBody}>
+                <Text style={styles.sectionTitle}>Extra X Content</Text>
+                <Text style={styles.sectionSubtitle}>Unscored reach tracking, separate from leaderboard calculations.</Text>
+              </View>
+            </View>
+            <View style={styles.metricsGrid}>
+              <MetricTile label="Extra posts" value={formatInteger(extraContent.totalSubmissions)} />
+              <MetricTile label="Extra impressions" value={formatInteger(extraContent.totalImpressions)} />
+              <MetricTile label="Avg impressions / extra post" value={formatInteger(extraContent.averageImpressionsPerSubmission)} />
+            </View>
+            <MetricList label="Extra posts per region" values={extraContent.submissionsPerRegion} />
+          </View>
+        ) : null}
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>

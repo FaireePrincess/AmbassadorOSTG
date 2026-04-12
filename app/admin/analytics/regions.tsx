@@ -99,7 +99,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 export default function AdminRegionalAnalyticsScreen() {
   const router = useRouter();
   const { users, isLoading: authLoading, currentUser } = useAuth();
-  const { submissions, isLoading: appLoading } = useApp();
+  const { submissions, extraContent, isLoading: appLoading } = useApp();
   const [selectedRegion, setSelectedRegion] = useState<string>('All Regions');
   const [selectedWindow, setSelectedWindow] = useState<WindowKey>('30d');
   const [customStartInput, setCustomStartInput] = useState('');
@@ -152,6 +152,21 @@ export default function AdminRegionalAnalyticsScreen() {
     }
     return true;
   });
+  const filteredExtraContent = extraContent.filter((item) => {
+    const region = regionByUserId.get(item.userId) || 'Unknown';
+    if (selectedRegion !== 'All Regions' && region !== selectedRegion) return false;
+
+    if (!startDate) return true;
+    const submittedAt = new Date(item.submittedAt);
+    if (Number.isNaN(submittedAt.getTime())) return false;
+    if (submittedAt < startDate) return false;
+    if (endDate) {
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (submittedAt > endOfDay) return false;
+    }
+    return true;
+  });
 
   const totals = approvedSubmissions.reduce(
     (acc, submission) => {
@@ -171,6 +186,14 @@ export default function AdminRegionalAnalyticsScreen() {
 
   const avgImpressionsPerPost = totals.posts > 0 ? Math.round(totals.impressions / totals.posts) : 0;
   const engagementRate = totals.impressions > 0 ? ((totals.likes + totals.retweets) / totals.impressions) * 100 : 0;
+  const extraTotals = filteredExtraContent.reduce(
+    (acc, item) => {
+      acc.posts += 1;
+      acc.impressions += item.metrics?.impressions || 0;
+      return acc;
+    },
+    { posts: 0, impressions: 0 }
+  );
 
   const byUser = new Map<string, { posts: number; impressions: number; likes: number; retweets: number }>();
   for (const submission of approvedSubmissions) {
@@ -282,6 +305,17 @@ export default function AdminRegionalAnalyticsScreen() {
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Impressions Trend</Text>
           <TrendChart points={trendValues} />
+        </View>
+
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Extra X Content</Text>
+            <Text style={styles.panelMeta}>Unscored and separate from leaderboard</Text>
+          </View>
+          <View style={styles.metricsGrid}>
+            <MetricCard label="Extra Posts" value={formatValue(extraTotals.posts)} />
+            <MetricCard label="Extra Impressions" value={formatValue(extraTotals.impressions)} />
+          </View>
         </View>
 
         <View style={styles.panel}>

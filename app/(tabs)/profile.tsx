@@ -8,7 +8,7 @@ import { Edit3, Award, TrendingUp, FileCheck, ExternalLink, ChevronRight, Chevro
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import Typography from '@/constants/typography';
-import { useApp, useUserSubmissions } from '@/contexts/AppContext';
+import { useApp, useUserExtraContent, useUserSubmissions } from '@/contexts/AppContext';
 import { AVATAR_PRESETS, normalizeAvatarUri } from '@/constants/avatarPresets';
 import { getBuildLabel } from '@/constants/buildInfo';
 
@@ -24,9 +24,10 @@ type TabType = 'submissions' | 'stats';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isRefreshing, refreshData } = useApp();
+  const { isRefreshing, refreshData, addExtraContent } = useApp();
   const { currentUser, logout, changePassword, updateProfile } = useAuth();
   const sortedSubmissions = useUserSubmissions(currentUser?.id);
+  const sortedExtraContent = useUserExtraContent(currentUser?.id);
   const [activeTab, setActiveTab] = useState<TabType>('submissions');
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || '');
@@ -49,6 +50,9 @@ export default function ProfileScreen() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isExtraContentModalVisible, setIsExtraContentModalVisible] = useState(false);
+  const [extraContentUrl, setExtraContentUrl] = useState('');
+  const [isSubmittingExtraContent, setIsSubmittingExtraContent] = useState(false);
 
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -140,6 +144,29 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Could not open link');
     });
   }, []);
+
+  const handleSubmitExtraContent = useCallback(async () => {
+    if (!currentUser) return;
+    if (!extraContentUrl.trim()) {
+      Alert.alert('Error', 'Please enter an X post URL');
+      return;
+    }
+
+    setIsSubmittingExtraContent(true);
+    const result = await addExtraContent(extraContentUrl.trim(), currentUser.id);
+    setIsSubmittingExtraContent(false);
+
+    if (!result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', result.error || 'Could not submit extra X content');
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setExtraContentUrl('');
+    setIsExtraContentModalVisible(false);
+    Alert.alert('Submitted', 'Extra X content is being tracked separately from leaderboard scoring.');
+  }, [addExtraContent, currentUser, extraContentUrl]);
 
   const handleSaveProfile = useCallback(async () => {
     if (!currentUser) return;
@@ -426,6 +453,64 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        <View style={styles.extraContentSection}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionHeaderTitle}>Extra X Content</Text>
+              <Text style={styles.sectionHeaderSubtitle}>{sortedExtraContent.length} tracked</Text>
+            </View>
+            <PressableScale
+              style={styles.extraContentAddBtn}
+              onPress={() => setIsExtraContentModalVisible(true)}
+            >
+              <Text style={styles.extraContentAddText}>Add Post</Text>
+            </PressableScale>
+          </View>
+          <Text style={styles.extraContentNote}>
+            These posts help track wider reach. They are not scored and do not affect leaderboard rank.
+          </Text>
+          {sortedExtraContent.length > 0 ? (
+            <View style={styles.extraContentList}>
+              {sortedExtraContent.slice(0, 5).map((item) => (
+                <View key={item.id} style={styles.extraContentItem}>
+                  <View style={styles.extraContentItemHeader}>
+                    <PlatformBadge platform="twitter" />
+                    <Text style={styles.extraContentStatus}>{item.status}</Text>
+                  </View>
+                  <Text style={styles.extraContentUrl} numberOfLines={1}>{item.canonicalUrl}</Text>
+                  <View style={styles.metricsRow}>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricValue}>{(item.metrics.impressions / 1000).toFixed(1)}K</Text>
+                      <Text style={styles.metricLabel}>Views</Text>
+                    </View>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricValue}>{item.metrics.likes}</Text>
+                      <Text style={styles.metricLabel}>Likes</Text>
+                    </View>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricValue}>{item.metrics.comments}</Text>
+                      <Text style={styles.metricLabel}>Comments</Text>
+                    </View>
+                    <View style={styles.metricItem}>
+                      <Text style={styles.metricValue}>{item.metrics.shares}</Text>
+                      <Text style={styles.metricLabel}>Shares</Text>
+                    </View>
+                  </View>
+                  <View style={styles.submissionFooter}>
+                    <Text style={styles.submissionDate}>
+                      Submitted {new Date(item.submittedAt).toLocaleDateString()}
+                    </Text>
+                    <PressableScale style={styles.viewPostBtn} onPress={() => openPostUrl(item.canonicalUrl)}>
+                      <ExternalLink size={14} color={Colors.dark.primary} />
+                      <Text style={styles.viewPostText}>View Post</Text>
+                    </PressableScale>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.tabsWrapper}>
           {Platform.OS === 'web' ? (
             <View style={styles.webTabRow}>
@@ -593,6 +678,49 @@ export default function ProfileScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      <Modal
+        visible={isExtraContentModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsExtraContentModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Extra X Content</Text>
+            <PressableScale onPress={() => setIsExtraContentModalVisible(false)}>
+              <X size={24} color={Colors.dark.text} />
+            </PressableScale>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.extraContentModalText}>
+                Submit an X post that is not tied to a task. It will track impressions separately and will not affect points or rank.
+              </Text>
+              <Text style={styles.inputLabel}>X Post URL</Text>
+              <TextInput
+                style={styles.extraContentTextInput}
+                value={extraContentUrl}
+                onChangeText={setExtraContentUrl}
+                placeholder="https://x.com/yourhandle/status/..."
+                placeholderTextColor={Colors.dark.textMuted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <PressableScale
+                style={[styles.saveButton, isSubmittingExtraContent && styles.saveButtonDisabled]}
+                onPress={handleSubmitExtraContent}
+                disabled={isSubmittingExtraContent}
+              >
+                <Save size={20} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {isSubmittingExtraContent ? 'Submitting...' : 'Submit Extra Content'}
+                </Text>
+              </PressableScale>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       <Modal
         visible={isEditModalVisible}
@@ -1380,6 +1508,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.dark.primary,
+  },
+  extraContentSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  extraContentAddBtn: {
+    backgroundColor: Colors.dark.primary + '18',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  extraContentAddText: {
+    color: Colors.dark.primary,
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  extraContentNote: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  extraContentList: {
+    gap: 12,
+  },
+  extraContentItem: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 12,
+  },
+  extraContentItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  extraContentStatus: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    textTransform: 'capitalize',
+  },
+  extraContentUrl: {
+    color: Colors.dark.textSecondary,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  extraContentModalText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  extraContentTextInput: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    color: Colors.dark.text,
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   statsGrid: {
     flexDirection: 'row',
